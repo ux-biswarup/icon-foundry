@@ -1,13 +1,13 @@
 {
-  "name": "shipment-exception",
+  "name": "cat-alert",
   "language": "lucide-inspired",
   "canvas": 24,
   "meta": {
-    "description": "A shipment with a problem"
+    "description": "Uses the user-defined `cat` element from examples/elements plus a built-in badge"
   },
   "elements": [
     {
-      "primitive": "package",
+      "primitive": "cat",
       "x": 3,
       "y": 10,
       "width": 11,

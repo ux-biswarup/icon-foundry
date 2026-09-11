@@ -1,5 +1,5 @@
 import type { ComposedIcon } from "@icon-foundry/icon-composer";
-import type { IconLanguage } from "@icon-foundry/icon-language";
+import type { IconLanguage, SizeTokens } from "@icon-foundry/icon-language";
 import type { IconSpec } from "@icon-foundry/icon-spec";
 
 export type Severity = "error" | "warning";
@@ -24,6 +24,8 @@ export interface ValidationResult {
 export interface RuleContext {
   spec: IconSpec;
   language: IconLanguage;
+  /** Tokens for the spec's canvas, or the nearest size when the canvas is unknown. */
+  tokens: SizeTokens;
   /** Undefined when the spec could not be composed. */
   composed: ComposedIcon | undefined;
 }

@@ -1,6 +1,6 @@
 # Current capabilities
 
-Status as of 2026-09-11, commit `648339c`. This document describes what the
+Status as of 2026-09-11 (updated after the first schema slice). This document describes what the
 system does today, not what it is planned to do. It is the baseline for the
 discussion about free-form icon generation.
 
@@ -71,8 +71,10 @@ of these, and a developer can author one by hand.
 - Per-spec and per-element overrides of style, stroke width, cap, join, and colour. Overrides are allowed but validated.
 - Free-form `meta` for tags, descriptions, and source intent.
 
-It cannot express free-form paths, custom shapes, or anything outside the
-primitive registry.
+- Freeform `path` elements: SVG path data placed like a primitive, with
+  stroke, style, and validation still owned by the language.
+- User-defined elements: the same geometry packaged as a reusable, named
+  primitive with keywords and an optical shape, loadable from JSON.
 
 ## What the validator checks
 
@@ -87,20 +89,21 @@ primitive registry.
 | strokeJoin | warning | Join override differs from the language. |
 | color | error | A colour not in the language allow-list. |
 | complexity | warning | More primitives or shapes than the language detail budget. |
-| grid | warning | Top-level boxes not on the language grid. |
+| grid | warning | Top-level boxes not on the language layout grid. |
+| negativeSpace | warning | Visible gap between different elements below `minNegativeSpace`, unless they cross deliberately. |
 | compose | error | Unknown primitive; reported instead of thrown. |
 
-Not checked: minimum negative space (declared in the language, not
-enforced), visual similarity to existing icons, optical balance, legibility at
-16px.
+Not checked: visual similarity to existing icons, optical balance,
+construction angles.
 
 ## What the Icon Language controls
 
-Canvas size, grid step, safe area, stroke width, cap, join, corner radius,
-default and allowed styles, allowed colours, detail level with element and
-shape budgets, and a reserved minimum negative space. Renderers read these;
-nothing is hard-coded. A second language can be added by copying the JSON
-file and registering it.
+Per optical size (the starter language ships 24px and 16px): canvas, layout
+grid, safe area, stroke width, cap, join, corner radius, element and shape
+budgets, minimum negative space, and four keyline boxes (square, circle,
+horizontal, vertical). Per language: default and allowed styles, allowed
+colours, detail level. Renderers read these; nothing is hard-coded. A second
+language can be added by copying the JSON file and registering it.
 
 ## The AI layer as it exists
 
@@ -123,13 +126,12 @@ primitives.
 
 ## Known gaps, in order of how often a designer will hit them
 
-1. **Fixed vocabulary.** Any subject without a primitive fails outright. This is the gap raised on 2026-09-11 with "cat mouse".
-2. **Badge overlaps subject.** The badge recipe places the modifier over the subject with no knockout gap, so generated icons read as drafts and often need a manual IconSpec edit.
-3. **Filled style loses detail.** No cut-out support, so a filled warning has no exclamation mark and a filled warehouse has no door.
-4. **Two layout recipes only.** No side-by-side, stacked, or contained arrangements.
-5. **No round trip from Figma.** Components carry their spec but cannot be reopened for editing.
-6. **One language.** The starter language is the only one; nothing has been tested with a different canvas or stroke.
-7. **No negative-space rule.** Cramped compositions pass validation.
+1. **Fixed vocabulary in the plugin.** The keyword parser still fails on subjects without a primitive. Freeform paths and user-defined elements exist in the core but nothing drafts them yet; that is the agent's job in the web app.
+2. **Filled style loses detail.** No cut-out support, so a filled warning has no exclamation mark and a filled warehouse has no door.
+3. **Two layout recipes only.** No side-by-side, stacked, or contained arrangements.
+4. **No round trip from Figma.** Components carry their spec but cannot be reopened for editing.
+5. **One language.** The starter language is the only one shipped.
+6. **No construction rules.** Angles, closed-over-open, and rounding policy are not yet checked.
 
 ## Boundary the current design draws
 

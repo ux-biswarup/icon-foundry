@@ -7,6 +7,7 @@ import { definePrimitive } from "../primitive.js";
 export const plusPrimitive = definePrimitive({
   name: "plus",
   category: "symbol",
+  opticalShape: "square",
   description: "A plus sign.",
   box: { width: 24, height: 24 },
   keywords: ["plus", "add", "new", "create", "increase"],
@@ -16,6 +17,7 @@ export const plusPrimitive = definePrimitive({
 export const minusPrimitive = definePrimitive({
   name: "minus",
   category: "symbol",
+  opticalShape: "horizontal",
   description: "A minus sign.",
   box: { width: 24, height: 0 },
   keywords: ["minus", "remove", "subtract", "decrease", "less"],
@@ -25,6 +27,7 @@ export const minusPrimitive = definePrimitive({
 export const checkPrimitive = definePrimitive({
   name: "check",
   category: "symbol",
+  opticalShape: "horizontal",
   description: "A check mark.",
   box: { width: 24, height: 18 },
   keywords: ["check", "done", "complete", "approved", "confirmed", "success", "ok", "verified"],
@@ -34,6 +37,7 @@ export const checkPrimitive = definePrimitive({
 export const xPrimitive = definePrimitive({
   name: "x",
   category: "symbol",
+  opticalShape: "square",
   description: "A cross.",
   box: { width: 24, height: 24 },
   keywords: ["x", "close", "cancel", "delete", "failed", "rejected", "cross"],
@@ -43,6 +47,7 @@ export const xPrimitive = definePrimitive({
 export const warningPrimitive = definePrimitive({
   name: "warning",
   category: "symbol",
+  opticalShape: "square",
   description: "A triangle with an exclamation mark.",
   box: { width: 24, height: 22 },
   keywords: ["warning", "alert", "exception", "issue", "problem", "caution", "risk", "error"],
@@ -56,6 +61,7 @@ export const warningPrimitive = definePrimitive({
 export const snowflakePrimitive = definePrimitive({
   name: "snowflake",
   category: "symbol",
+  opticalShape: "circle",
   description: "A six-armed snowflake.",
   box: { width: 24, height: 24 },
   keywords: ["snowflake", "cold", "frozen", "freeze", "chilled", "refrigerated", "cool", "ice", "winter"],
@@ -76,6 +82,7 @@ export const snowflakePrimitive = definePrimitive({
 export const thermometerPrimitive = definePrimitive({
   name: "thermometer",
   category: "symbol",
+  opticalShape: "vertical",
   description: "A thermometer with a round bulb.",
   box: { width: 10, height: 24 },
   keywords: ["thermometer", "temperature", "heat", "hot", "warm", "climate", "degrees"],
@@ -88,6 +95,7 @@ export const thermometerPrimitive = definePrimitive({
 export const locationPrimitive = definePrimitive({
   name: "location",
   category: "symbol",
+  opticalShape: "vertical",
   description: "A map pin.",
   box: { width: 20, height: 24 },
   keywords: ["location", "pin", "place", "address", "map", "gps", "site", "destination"],
@@ -107,6 +115,7 @@ export const locationPrimitive = definePrimitive({
 export const clockPrimitive = definePrimitive({
   name: "clock",
   category: "symbol",
+  opticalShape: "circle",
   description: "A clock face with hands.",
   box: { width: 24, height: 24 },
   keywords: ["clock", "time", "schedule", "duration", "hours", "deadline", "timer", "history"],
@@ -120,6 +129,7 @@ export const clockPrimitive = definePrimitive({
 export const arrowPrimitive = definePrimitive({
   name: "arrow",
   category: "symbol",
+  opticalShape: "horizontal",
   description: "An arrow pointing right. Rotate the element for other directions.",
   box: { width: 24, height: 20 },
   keywords: ["arrow", "next", "forward", "direction", "move", "transfer", "send", "route"],

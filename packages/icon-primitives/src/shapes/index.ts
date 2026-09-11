@@ -4,6 +4,7 @@ import { definePrimitive, localRadius } from "../primitive.js";
 export const circlePrimitive = definePrimitive({
   name: "circle",
   category: "shape",
+  opticalShape: "circle",
   description: "A circle filling its box.",
   box: { width: 24, height: 24 },
   keywords: ["circle", "round", "dot", "ring"],
@@ -13,6 +14,7 @@ export const circlePrimitive = definePrimitive({
 export const squarePrimitive = definePrimitive({
   name: "square",
   category: "shape",
+  opticalShape: "square",
   description: "A sharp-cornered square.",
   box: { width: 24, height: 24 },
   keywords: ["square", "box-outline"],
@@ -22,6 +24,7 @@ export const squarePrimitive = definePrimitive({
 export const roundedRectanglePrimitive = definePrimitive({
   name: "rounded-rectangle",
   category: "shape",
+  opticalShape: "square",
   description: "A rectangle using the language corner radius.",
   box: { width: 24, height: 24 },
   keywords: ["rectangle", "rounded", "card", "frame"],
@@ -31,6 +34,7 @@ export const roundedRectanglePrimitive = definePrimitive({
 export const trianglePrimitive = definePrimitive({
   name: "triangle",
   category: "shape",
+  opticalShape: "square",
   description: "An upward-pointing triangle.",
   box: { width: 24, height: 22 },
   keywords: ["triangle", "delta"],
@@ -40,6 +44,7 @@ export const trianglePrimitive = definePrimitive({
 export const linePrimitive = definePrimitive({
   name: "line",
   category: "shape",
+  opticalShape: "horizontal",
   description: "A horizontal line. Rotate the element for other angles.",
   box: { width: 24, height: 0 },
   keywords: ["line", "divider", "dash"],
@@ -49,6 +54,7 @@ export const linePrimitive = definePrimitive({
 export const arcPrimitive = definePrimitive({
   name: "arc",
   category: "shape",
+  opticalShape: "horizontal",
   description: "An open half-circle bulging upward.",
   box: { width: 24, height: 12 },
   keywords: ["arc", "curve", "half-circle"],

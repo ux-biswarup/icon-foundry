@@ -1,0 +1,27 @@
+{
+  "name": "temperature-warehouse-16",
+  "language": "lucide-inspired",
+  "canvas": 16,
+  "meta": {
+    "description": "The same concept at the 16px optical size: thinner stroke, smaller badge"
+  },
+  "elements": [
+    {
+      "primitive": "warehouse",
+      "x": 1,
+      "y": 6,
+      "width": 11,
+      "height": 7,
+      "align": {
+        "x": "start",
+        "y": "end"
+      }
+    },
+    {
+      "primitive": "snowflake",
+      "x": 10,
+      "y": 1,
+      "size": 5
+    }
+  ]
+}

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://icon-foundry.dev/schemas/language.schema.json",
   "title": "Icon Language",
-  "description": "Versioned design rules that every icon in a set must follow.",
+  "description": "Versioned design rules that every icon in a set must follow. Top-level tokens describe the default optical size; `sizes` adds more.",
   "type": "object",
   "required": ["id", "name", "version", "canvas", "grid", "safeArea", "stroke", "cornerRadius", "style"],
   "additionalProperties": false,
@@ -13,18 +13,9 @@
     "version": { "type": "string" },
     "description": { "type": "string" },
     "canvas": { "type": "number", "exclusiveMinimum": 0 },
-    "grid": { "type": "number", "exclusiveMinimum": 0 },
+    "grid": { "type": "number", "exclusiveMinimum": 0, "description": "Layout grid for element boxes. Not a pixel-snapping rule." },
     "safeArea": { "type": "number", "minimum": 0 },
-    "stroke": {
-      "type": "object",
-      "required": ["width", "cap", "join"],
-      "additionalProperties": false,
-      "properties": {
-        "width": { "type": "number", "exclusiveMinimum": 0 },
-        "cap": { "enum": ["butt", "round", "square"] },
-        "join": { "enum": ["miter", "round", "bevel"] }
-      }
-    },
+    "stroke": { "$ref": "#/$defs/stroke", "required": ["width", "cap", "join"] },
     "cornerRadius": { "type": "number", "minimum": 0 },
     "style": {
       "type": "object",
@@ -43,6 +34,39 @@
       }
     },
     "detail": { "enum": ["low", "medium", "high"] },
+    "limits": { "$ref": "#/$defs/limits" },
+    "minNegativeSpace": { "type": "number", "minimum": 0, "description": "Minimum visible gap between shapes of different elements. 0 disables." },
+    "optical": { "$ref": "#/$defs/optical" },
+    "sizes": {
+      "type": "array",
+      "description": "Additional optical sizes. Unspecified fields inherit from the default size.",
+      "items": {
+        "type": "object",
+        "required": ["canvas"],
+        "additionalProperties": false,
+        "properties": {
+          "canvas": { "type": "number", "exclusiveMinimum": 0 },
+          "grid": { "type": "number", "exclusiveMinimum": 0 },
+          "safeArea": { "type": "number", "minimum": 0 },
+          "stroke": { "$ref": "#/$defs/stroke" },
+          "cornerRadius": { "type": "number", "minimum": 0 },
+          "limits": { "$ref": "#/$defs/limits" },
+          "minNegativeSpace": { "type": "number", "minimum": 0 },
+          "optical": { "$ref": "#/$defs/optical" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stroke": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "cap": { "enum": ["butt", "round", "square"] },
+        "join": { "enum": ["miter", "round", "bevel"] }
+      }
+    },
     "limits": {
       "type": "object",
       "additionalProperties": false,
@@ -51,6 +75,27 @@
         "maxShapes": { "type": "integer", "minimum": 1 }
       }
     },
-    "minNegativeSpace": { "type": "number", "minimum": 0 }
+    "box": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number", "minimum": 0 },
+        "y": { "type": "number", "minimum": 0 },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "optical": {
+      "type": "object",
+      "description": "Keyline boxes per optical shape. Defaults derive from canvas and safe area.",
+      "additionalProperties": false,
+      "properties": {
+        "square": { "$ref": "#/$defs/box" },
+        "circle": { "$ref": "#/$defs/box" },
+        "horizontal": { "$ref": "#/$defs/box" },
+        "vertical": { "$ref": "#/$defs/box" }
+      }
+    }
   }
 }

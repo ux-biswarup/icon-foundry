@@ -36,15 +36,15 @@ Validator
 Figma component
 ```
 
-**An Icon Language.** A small, versioned JSON file that defines what makes your icons yours: canvas, grid, safe area, stroke width, caps and joins, corner radius, allowed styles and colours, and a detail budget. Start from the bundled Lucide-inspired language and evolve it into a proprietary one.
+**An Icon Language.** A small, versioned JSON file that defines what makes your icons yours: optical sizes with their own stroke, safe area, and detail budget, keyline boxes so wide and round icons read as the same size, minimum negative space, caps and joins, corner radius, allowed styles and colours. Start from the bundled Lucide-inspired language and evolve it into a proprietary one.
 
-**A primitive library.** Composable building blocks such as warehouse, package, vehicle, document, person, snowflake, thermometer, clock, warning, arrow, and basic shapes. Each primitive is a pure function that adapts to the active language, so a warehouse drawn today and one drawn next year share the same stroke and proportions.
+**A growing vocabulary.** Composable building blocks such as warehouse, package, vehicle, document, person, snowflake, thermometer, clock, warning, arrow, and basic shapes. Each adapts to the active language, so a warehouse drawn today and one drawn next year share the same stroke and proportions. When a subject is missing, a freeform path or a user-defined element drawn once becomes part of the vocabulary, and every later use is consistent.
 
 **IconSpec, a portable icon representation.** An icon is stored as *which primitives go where*, not as path data. The same spec renders to SVG now and to other targets later, and re-renders automatically when the language changes.
 
 **A deterministic composer and renderer.** Same spec plus same language always gives the same output. No randomness, no network, no API key.
 
-**A first-class validator.** Every icon is checked against its language before it counts as done: canvas size, safe area, stroke width, caps, joins, colours, grid alignment, geometry sanity, and complexity. Results are structured so tools can show a checklist instead of a wall of text.
+**A first-class validator.** Every icon is checked against its language before it counts as done: optical size, safe area, stroke width, caps, joins, colours, grid alignment, negative space between elements, geometry sanity, and complexity. Results are structured so tools can show a checklist instead of a wall of text.
 
 **A Figma plugin.** Describe an icon, pick the language and style, preview it at 96px and 24px, read the validation checklist, edit the IconSpec if you want, and create a native Figma component named predictably as `icon/<style>/<name>`. The spec is stored on the component so it can be regenerated later.
 
@@ -66,7 +66,9 @@ Figma component
   "cornerRadius": 2,
   "style": { "default": "outline", "allowed": ["outline", "filled"] },
   "colors": { "allowed": ["currentColor"] },
-  "detail": "low"
+  "detail": "low",
+  "minNegativeSpace": 2,
+  "sizes": [{ "canvas": 16, "safeArea": 1, "stroke": { "width": 1.5 } }]
 }
 ```
 
@@ -79,13 +81,13 @@ Figma component
   "style": "outline",
   "canvas": 24,
   "elements": [
-    { "primitive": "warehouse", "x": 2, "y": 6, "width": 16, "height": 16, "align": { "x": "start", "y": "end" } },
+    { "primitive": "warehouse", "x": 2, "y": 9, "width": 15, "height": 11, "align": { "x": "start", "y": "end" } },
     { "primitive": "snowflake", "x": 15, "y": 2, "size": 7 }
   ]
 }
 ```
 
-Elements can be rotated, flipped, aligned, nudged for optical balance, grouped into reusable badges, and can override style or stroke per element. The validator flags any override that drifts from the language.
+Elements can be rotated, flipped, aligned, nudged for optical balance, grouped into reusable badges, and can override style or stroke per element. A `path` element carries freeform geometry for subjects no primitive covers. The validator flags any override that drifts from the language.
 
 ### 3. Compose, render, validate
 

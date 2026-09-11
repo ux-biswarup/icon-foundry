@@ -4,7 +4,22 @@
   "style": "filled",
   "canvas": 24,
   "elements": [
-    { "primitive": "warehouse", "x": 2, "y": 6, "width": 16, "height": 16, "align": { "x": "start", "y": "end" } },
-    { "primitive": "snowflake", "x": 15, "y": 2, "size": 7 }
+    {
+      "primitive": "warehouse",
+      "x": 2,
+      "y": 9,
+      "width": 15,
+      "height": 11,
+      "align": {
+        "x": "start",
+        "y": "end"
+      }
+    },
+    {
+      "primitive": "snowflake",
+      "x": 15,
+      "y": 2,
+      "size": 7
+    }
   ]
 }

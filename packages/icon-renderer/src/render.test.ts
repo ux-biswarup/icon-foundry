@@ -64,6 +64,14 @@ describe("renderSvg", () => {
     expect(a).toBe(b);
   });
 
+  it("emits the stroke of the spec's optical size on the root", () => {
+    const svg = renderSpecToSvg(
+      parseIconSpec({ name: "c16", language: "lucide-inspired", canvas: 16, elements: [{ primitive: "circle", x: 1, y: 1, size: 14 }] }),
+      lucideInspired,
+    );
+    expect(svg).toContain('viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"');
+  });
+
   it("can omit xmlns and dimensions for inline embedding", () => {
     const svg = renderSpecToSvg(temperatureWarehouse, lucideInspired, { xmlns: false, dimensions: false });
     expect(svg.startsWith('<svg viewBox="0 0 24 24" fill="none"')).toBe(true);

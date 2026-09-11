@@ -113,6 +113,23 @@ describe("compose", () => {
     );
   });
 
+  it("uses the tokens of the spec's optical size", () => {
+    const icon = compose(spec([{ primitive: "circle", x: 1, y: 1, size: 14 }], { canvas: 16 }), lucideInspired);
+    expect(icon.tokens.canvas).toBe(16);
+    expect(icon.shapes[0]?.stroke.width).toBe(1.5);
+    // Unknown canvas falls back to the nearest size so the validator can still show geometry.
+    expect(compose(spec([{ primitive: "circle", x: 1, y: 1, size: 14 }], { canvas: 18 }), lucideInspired).tokens.canvas).toBe(16);
+  });
+
+  it("composes freeform path elements with a derived natural box", () => {
+    const icon = compose(spec([{ path: "M0 0 L10 0 L10 10 Z", x: 2, y: 2, size: 20 }]), lucideInspired);
+    expect(icon.shapes[0]?.primitive).toBe("path");
+    expect(icon.shapes[0]?.shape.fillable).toBe(true);
+    const b = composedBounds(icon);
+    expect([b.minX, b.minY, b.maxX, b.maxY]).toEqual([2, 2, 22, 22]);
+    expect(() => compose(spec([{ path: "M0 0 Q1 1 2 2", x: 2, y: 2, size: 20 }]), lucideInspired)).toThrow(ComposeError);
+  });
+
   it("is deterministic", () => {
     const s = spec([
       { primitive: "warehouse", x: 2, y: 6, width: 16, height: 16 },

@@ -45,6 +45,9 @@ export class PrimitiveRegistry {
 }
 
 /** All primitives shipped with Icon Foundry. */
-export const builtInPrimitives: readonly Primitive[] = [...shapes, ...objects, ...symbols];
+export const builtInPrimitives: readonly Primitive[] = [...shapes, ...objects, ...symbols].map((p) => ({
+  ...p,
+  origin: "builtin" as const,
+}));
 
 export const defaultRegistry = new PrimitiveRegistry(builtInPrimitives);

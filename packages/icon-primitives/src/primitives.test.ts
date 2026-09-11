@@ -41,6 +41,13 @@ describe("built-in primitives", () => {
     }
   });
 
+  it("declares an optical shape and builtin origin on every primitive", () => {
+    for (const primitive of builtInPrimitives) {
+      expect(["square", "circle", "horizontal", "vertical"]).toContain(primitive.opticalShape);
+      expect(primitive.origin).toBe("builtin");
+    }
+  });
+
   it("exposes primitives through the registry", () => {
     expect(defaultRegistry.get("warehouse").category).toBe("object");
     expect(() => defaultRegistry.get("unicorn")).toThrow(/Unknown primitive/);

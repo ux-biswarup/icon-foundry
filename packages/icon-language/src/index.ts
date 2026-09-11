@@ -3,7 +3,17 @@ import { parseIconLanguage } from "./parse.js";
 import type { IconLanguage } from "./types.js";
 
 export * from "./types.js";
-export { IconLanguageError, DETAIL_LIMITS, parseIconLanguage, defineIconLanguage } from "./parse.js";
+export {
+  IconLanguageError,
+  DETAIL_LIMITS,
+  OPTICAL_SHAPES,
+  defaultOpticalBoxes,
+  parseIconLanguage,
+  defineIconLanguage,
+  resolveTokens,
+  hasSize,
+  nearestTokens,
+} from "./parse.js";
 
 /** The bundled starter language. Copy `languages/lucide-inspired/language.json`
  * to create your own. */

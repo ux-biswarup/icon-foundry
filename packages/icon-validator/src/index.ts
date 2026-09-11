@@ -1,5 +1,5 @@
 import { compose, ComposeError, type ComposeOptions, type ComposedIcon } from "@icon-foundry/icon-composer";
-import type { IconLanguage } from "@icon-foundry/icon-language";
+import { hasSize, nearestTokens, resolveTokens, type IconLanguage } from "@icon-foundry/icon-language";
 import type { IconSpec } from "@icon-foundry/icon-spec";
 import { builtInRules } from "./rules/index.js";
 import type { RuleContext, ValidationIssue, ValidationResult, ValidationRule } from "./types.js";
@@ -40,7 +40,8 @@ export function validateIconSpec(
     }
   }
 
-  const ctx: RuleContext = { spec, language, composed };
+  const tokens = hasSize(language, spec.canvas) ? resolveTokens(language, spec.canvas) : nearestTokens(language, spec.canvas);
+  const ctx: RuleContext = { spec, language, tokens, composed };
   const passed: string[] = [];
   for (const rule of rules) {
     const found = rule.check(ctx);

@@ -1,5 +1,6 @@
-import { composedBounds } from "@icon-foundry/icon-composer";
-import { isFiniteShape } from "@icon-foundry/icon-primitives";
+import { composedBounds, topLevelIndex } from "@icon-foundry/icon-composer";
+import { hasSize } from "@icon-foundry/icon-language";
+import { isFiniteShape, shapeDistance } from "@icon-foundry/icon-primitives";
 import { elementBox, type IconElement } from "@icon-foundry/icon-spec";
 import { defineRule, type ValidationIssue, type ValidationRule } from "../types.js";
 
@@ -21,13 +22,13 @@ export const canvasRule = defineRule({
   id: "canvas",
   label: "Canvas size",
   check: ({ spec, language }) =>
-    spec.canvas === language.canvas
+    hasSize(language, spec.canvas)
       ? []
       : [
           {
             severity: "error",
             rule: "canvas",
-            message: `Canvas is ${spec.canvas} but the language "${language.name}" requires ${language.canvas}.`,
+            message: `Canvas ${spec.canvas} is not an optical size of "${language.name}" (sizes: ${Object.keys(language.sizes).join(", ")}).`,
           },
         ],
 });
@@ -95,18 +96,18 @@ export const geometryRule = defineRule({
 export const safeAreaRule = defineRule({
   id: "safeArea",
   label: "Safe area",
-  check: ({ language, composed }) => {
+  check: ({ tokens, composed }) => {
     if (!composed || composed.shapes.length === 0) return [];
     const b = composedBounds(composed);
-    const min = language.safeArea;
-    const max = language.canvas - language.safeArea;
+    const min = tokens.safeArea;
+    const max = tokens.canvas - tokens.safeArea;
     const overflow = Math.max(min - b.minX, min - b.minY, b.maxX - max, b.maxY - max);
     if (overflow <= EPS) return [];
     return [
       {
         severity: "error",
         rule: "safeArea",
-        message: `Geometry leaves the ${language.safeArea}-unit safe area by ${overflow.toFixed(2)} units (bounds ${b.minX.toFixed(2)}, ${b.minY.toFixed(2)} → ${b.maxX.toFixed(2)}, ${b.maxY.toFixed(2)}).`,
+        message: `Geometry leaves the ${tokens.safeArea}-unit safe area by ${overflow.toFixed(2)} units (bounds ${b.minX.toFixed(2)}, ${b.minY.toFixed(2)} → ${b.maxX.toFixed(2)}, ${b.maxY.toFixed(2)}).`,
       },
     ];
   },
@@ -115,18 +116,18 @@ export const safeAreaRule = defineRule({
 export const strokeWidthRule = defineRule({
   id: "strokeWidth",
   label: "Stroke width",
-  check: ({ language, composed }) => {
+  check: ({ tokens, composed }) => {
     if (!composed) return [];
     const seen = new Set<string>();
     const issues: ValidationIssue[] = [];
     for (const item of composed.shapes) {
-      if (item.stroke.width === language.stroke.width || seen.has(item.source)) continue;
+      if (item.stroke.width === tokens.stroke.width || seen.has(item.source)) continue;
       seen.add(item.source);
-      const pct = Math.round(((item.stroke.width - language.stroke.width) / language.stroke.width) * 100);
+      const pct = Math.round(((item.stroke.width - tokens.stroke.width) / tokens.stroke.width) * 100);
       issues.push({
         severity: "warning",
         rule: "strokeWidth",
-        message: `Stroke is ${Math.abs(pct)}% ${pct > 0 ? "heavier" : "lighter"} than the language stroke width (${item.stroke.width} vs ${language.stroke.width}).`,
+        message: `Stroke is ${Math.abs(pct)}% ${pct > 0 ? "heavier" : "lighter"} than the language stroke width (${item.stroke.width} vs ${tokens.stroke.width}).`,
         source: item.source,
       });
     }
@@ -137,17 +138,17 @@ export const strokeWidthRule = defineRule({
 export const strokeCapRule = defineRule({
   id: "strokeCap",
   label: "Stroke caps",
-  check: ({ language, composed }) => {
+  check: ({ tokens, composed }) => {
     if (!composed) return [];
     const seen = new Set<string>();
     const issues: ValidationIssue[] = [];
     for (const item of composed.shapes) {
-      if (item.stroke.cap === language.stroke.cap || seen.has(item.source)) continue;
+      if (item.stroke.cap === tokens.stroke.cap || seen.has(item.source)) continue;
       seen.add(item.source);
       issues.push({
         severity: "warning",
         rule: "strokeCap",
-        message: `Stroke cap "${item.stroke.cap}" differs from the language cap "${language.stroke.cap}".`,
+        message: `Stroke cap "${item.stroke.cap}" differs from the language cap "${tokens.stroke.cap}".`,
         source: item.source,
       });
     }
@@ -158,17 +159,17 @@ export const strokeCapRule = defineRule({
 export const strokeJoinRule = defineRule({
   id: "strokeJoin",
   label: "Stroke joins",
-  check: ({ language, composed }) => {
+  check: ({ tokens, composed }) => {
     if (!composed) return [];
     const seen = new Set<string>();
     const issues: ValidationIssue[] = [];
     for (const item of composed.shapes) {
-      if (item.stroke.join === language.stroke.join || seen.has(item.source)) continue;
+      if (item.stroke.join === tokens.stroke.join || seen.has(item.source)) continue;
       seen.add(item.source);
       issues.push({
         severity: "warning",
         rule: "strokeJoin",
-        message: `Stroke join "${item.stroke.join}" differs from the language join "${language.stroke.join}".`,
+        message: `Stroke join "${item.stroke.join}" differs from the language join "${tokens.stroke.join}".`,
         source: item.source,
       });
     }
@@ -198,21 +199,21 @@ export const colorRule = defineRule({
 export const complexityRule = defineRule({
   id: "complexity",
   label: "Complexity",
-  check: ({ language, composed }) => {
+  check: ({ language, tokens, composed }) => {
     if (!composed) return [];
     const issues: ValidationIssue[] = [];
-    if (composed.elementCount > language.limits.maxElements) {
+    if (composed.elementCount > tokens.limits.maxElements) {
       issues.push({
         severity: "warning",
         rule: "complexity",
-        message: `${composed.elementCount} primitives exceed the language budget of ${language.limits.maxElements} for "${language.detail}" detail.`,
+        message: `${composed.elementCount} primitives exceed the budget of ${tokens.limits.maxElements} for "${language.detail}" detail at ${tokens.canvas}px.`,
       });
     }
-    if (composed.shapes.length > language.limits.maxShapes) {
+    if (composed.shapes.length > tokens.limits.maxShapes) {
       issues.push({
         severity: "warning",
         rule: "complexity",
-        message: `${composed.shapes.length} shapes exceed the language budget of ${language.limits.maxShapes}.`,
+        message: `${composed.shapes.length} shapes exceed the budget of ${tokens.limits.maxShapes} at ${tokens.canvas}px.`,
       });
     }
     return issues;
@@ -222,22 +223,66 @@ export const complexityRule = defineRule({
 export const gridRule = defineRule({
   id: "grid",
   label: "Grid alignment",
-  check: ({ spec, language }) => {
+  check: ({ spec, tokens }) => {
     const issues: ValidationIssue[] = [];
     // Only top-level boxes are checked: group children live in a virtual canvas.
     spec.elements.forEach((el, i) => {
       const box = elementBox(el);
-      const off = (["x", "y", "width", "height"] as const).filter((k) => !onGrid(box[k], language.grid));
+      const off = (["x", "y", "width", "height"] as const).filter((k) => !onGrid(box[k], tokens.grid));
       if (off.length > 0) {
         issues.push({
           severity: "warning",
           rule: "grid",
-          message: `Element ${off.join(", ")} not on the ${language.grid}-unit grid.`,
+          message: `Element ${off.join(", ")} not on the ${tokens.grid}-unit grid.`,
           source: `elements[${i}]`,
         });
       }
     });
     return issues;
+  },
+});
+
+/**
+ * Negative space: shapes from different top-level elements must either cross
+ * (an intentional overlap) or keep a visible gap of at least
+ * `minNegativeSpace`. Below that, strokes merge into a blur at small sizes.
+ * The visible gap is the centreline distance minus half of each stroke.
+ */
+export const negativeSpaceRule = defineRule({
+  id: "negativeSpace",
+  label: "Negative space",
+  check: ({ tokens, composed }) => {
+    const min = tokens.minNegativeSpace;
+    if (!composed || min <= 0) return [];
+    const half = (item: (typeof composed.shapes)[number]) =>
+      item.style === "filled" && item.shape.fillable ? 0 : item.stroke.width / 2;
+
+    const worst = new Map<string, { gap: number; a: number; b: number }>();
+    for (let i = 0; i < composed.shapes.length; i++) {
+      for (let j = i + 1; j < composed.shapes.length; j++) {
+        const A = composed.shapes[i]!;
+        const B = composed.shapes[j]!;
+        const ta = topLevelIndex(A.source);
+        const tb = topLevelIndex(B.source);
+        if (ta === tb) continue;
+        const d = shapeDistance(A.shape, B.shape);
+        if (d === 0) continue; // crossing: intentional overlap
+        const gap = d - half(A) - half(B);
+        if (gap >= min - EPS) continue;
+        const key = `${Math.min(ta, tb)}-${Math.max(ta, tb)}`;
+        const prev = worst.get(key);
+        if (!prev || gap < prev.gap) worst.set(key, { gap, a: Math.min(ta, tb), b: Math.max(ta, tb) });
+      }
+    }
+    return [...worst.values()].map(({ gap, a, b }) => ({
+      severity: "warning" as const,
+      rule: "negativeSpace",
+      message:
+        gap <= 0
+          ? `elements[${a}] and elements[${b}] nearly touch without crossing (${gap.toFixed(2)} units); either overlap them deliberately or keep a ${min}-unit gap.`
+          : `Gap between elements[${a}] and elements[${b}] is ${gap.toFixed(2)} units; the language asks for at least ${min}.`,
+      source: `elements[${b}]`,
+    }));
   },
 });
 
@@ -252,4 +297,5 @@ export const builtInRules: readonly ValidationRule[] = [
   colorRule,
   complexityRule,
   gridRule,
+  negativeSpaceRule,
 ];

@@ -1,0 +1,17 @@
+{
+  "name": "freeform-bolt",
+  "language": "lucide-inspired",
+  "canvas": 24,
+  "meta": {
+    "description": "A one-off freeform path element; stroke, caps and validation still come from the language"
+  },
+  "elements": [
+    {
+      "path": "M10 0 L2 12 L9 12 L6 22 L16 8 L9 8 L12 0 Z",
+      "x": 4,
+      "y": 2,
+      "width": 16,
+      "height": 20
+    }
+  ]
+}

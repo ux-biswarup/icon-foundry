@@ -1,5 +1,5 @@
 import { compose, type ComposeOptions, type ComposedIcon, type ComposedShape } from "@icon-foundry/icon-composer";
-import type { IconLanguage } from "@icon-foundry/icon-language";
+import type { IconLanguage, SizeTokens } from "@icon-foundry/icon-language";
 import type { PathCommand, Shape } from "@icon-foundry/icon-primitives";
 import type { IconSpec } from "@icon-foundry/icon-spec";
 
@@ -79,7 +79,7 @@ function attrsToString(attrs: Attrs): string {
   return attrs.map(([k, v]) => ` ${k}="${v}"`).join("");
 }
 
-function shapeElement(item: ComposedShape, language: IconLanguage, precision: number): string {
+function shapeElement(item: ComposedShape, tokens: SizeTokens, precision: number): string {
   const f = (n: number) => formatNumber(n, precision);
   const { shape } = item;
   const filled = item.style === "filled" && shape.fillable;
@@ -111,9 +111,9 @@ function shapeElement(item: ComposedShape, language: IconLanguage, precision: nu
     attrs.push(["fill", item.color], ["stroke", "none"]);
   } else {
     if (item.color !== "currentColor") attrs.push(["stroke", item.color]);
-    if (item.stroke.width !== language.stroke.width) attrs.push(["stroke-width", f(item.stroke.width)]);
-    if (item.stroke.cap !== language.stroke.cap) attrs.push(["stroke-linecap", item.stroke.cap]);
-    if (item.stroke.join !== language.stroke.join) attrs.push(["stroke-linejoin", item.stroke.join]);
+    if (item.stroke.width !== tokens.stroke.width) attrs.push(["stroke-width", f(item.stroke.width)]);
+    if (item.stroke.cap !== tokens.stroke.cap) attrs.push(["stroke-linecap", item.stroke.cap]);
+    if (item.stroke.join !== tokens.stroke.join) attrs.push(["stroke-linejoin", item.stroke.join]);
   }
 
   return `<${tag}${attrsToString(attrs)}/>`;
@@ -121,9 +121,12 @@ function shapeElement(item: ComposedShape, language: IconLanguage, precision: nu
 
 /**
  * Render a composed icon to a compact, deterministic SVG string.
- * Root attributes carry the language tokens so per-shape output stays minimal.
+ * Root attributes carry the size tokens the icon was composed with, so
+ * per-shape output stays minimal. The language argument is accepted for API
+ * symmetry; tokens come from the composition.
  */
-export function renderSvg(icon: ComposedIcon, language: IconLanguage, options: RenderOptions = {}): string {
+export function renderSvg(icon: ComposedIcon, _language?: IconLanguage, options: RenderOptions = {}): string {
+  const tokens = icon.tokens;
   const precision = options.precision ?? 3;
   const f = (n: number) => formatNumber(n, precision);
   const root: Attrs = [];
@@ -133,12 +136,12 @@ export function renderSvg(icon: ComposedIcon, language: IconLanguage, options: R
   root.push(
     ["fill", "none"],
     ["stroke", "currentColor"],
-    ["stroke-width", f(language.stroke.width)],
-    ["stroke-linecap", language.stroke.cap],
-    ["stroke-linejoin", language.stroke.join],
+    ["stroke-width", f(tokens.stroke.width)],
+    ["stroke-linecap", tokens.stroke.cap],
+    ["stroke-linejoin", tokens.stroke.join],
   );
 
-  const body = icon.shapes.map((s) => shapeElement(s, language, precision)).join("");
+  const body = icon.shapes.map((s) => shapeElement(s, tokens, precision)).join("");
   return `<svg${attrsToString(root)}>${body}</svg>`;
 }
 

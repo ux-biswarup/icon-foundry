@@ -12,7 +12,7 @@ describe("validateIconSpec", () => {
   it("passes a well-behaved icon and lists passed rules", () => {
     const result = validateIconSpec(
       spec([
-        { primitive: "warehouse", x: 2, y: 6, width: 16, height: 16 },
+        { primitive: "warehouse", x: 2, y: 9, width: 15, height: 11, align: { x: "start", y: "end" } },
         { primitive: "snowflake", x: 15, y: 2, size: 7 },
       ]),
       lucideInspired,
@@ -21,10 +21,56 @@ describe("validateIconSpec", () => {
     expect(result.issues).toEqual([]);
     expect(result.passed).toContain("safeArea");
     expect(result.passed).toContain("strokeWidth");
+    expect(result.passed).toContain("negativeSpace");
+  });
+
+  it("validates against the tokens of the spec's optical size", () => {
+    const at16 = validateIconSpec(
+      spec(
+        [
+          { primitive: "warehouse", x: 1, y: 6, width: 11, height: 7, align: { x: "start", y: "end" } },
+          { primitive: "snowflake", x: 10, y: 1, size: 5, stroke: { width: 1.5 } },
+        ],
+        { canvas: 16 },
+      ),
+      lucideInspired,
+    );
+    // 1.5 is the 16px stroke, so the override is not a deviation there.
+    expect(at16.issues).toEqual([]);
+    const at24 = validateIconSpec(spec([{ primitive: "circle", x: 2, y: 2, size: 20, stroke: { width: 1.5 } }]), lucideInspired);
+    expect(rules(at24)).toContain("strokeWidth");
+  });
+
+  it("warns when elements nearly touch or leave too small a gap, but allows crossings", () => {
+    const tight = validateIconSpec(
+      spec([
+        { primitive: "warehouse", x: 2, y: 6, width: 16, height: 16 },
+        { primitive: "snowflake", x: 15, y: 2, size: 7 },
+      ]),
+      lucideInspired,
+    );
+    expect(tight.valid).toBe(true);
+    expect(tight.issues.find((i) => i.rule === "negativeSpace")?.message).toMatch(/Gap between elements\[0\] and elements\[1\] is 0\.\d+ units; the language asks for at least 2/);
+
+    const crossing = validateIconSpec(
+      spec([
+        { primitive: "circle", x: 2, y: 2, size: 20 },
+        { primitive: "line", x: 2, y: 2, size: 20 },
+      ]),
+      lucideInspired,
+    );
+    expect(rules(crossing)).not.toContain("negativeSpace");
+  });
+
+  it("validates freeform path elements like primitives", () => {
+    const ok = validateIconSpec(spec([{ path: "M0 0 L20 0 L20 20 L0 20 Z", x: 2, y: 2, size: 20 }]), lucideInspired);
+    expect(ok.valid).toBe(true);
+    const bad = validateIconSpec(spec([{ path: "M0 0 Q1 1 2 2", x: 2, y: 2, size: 20 }]), lucideInspired);
+    expect(bad.issues[0]).toMatchObject({ rule: "compose", source: "elements[0].path[0]" });
   });
 
   it("flags a canvas mismatch", () => {
-    const result = validateIconSpec(spec([{ primitive: "circle", x: 2, y: 2, size: 12 }], { canvas: 16 }), lucideInspired);
+    const result = validateIconSpec(spec([{ primitive: "circle", x: 2, y: 2, size: 16 }], { canvas: 20 }), lucideInspired);
     expect(result.valid).toBe(false);
     expect(rules(result)).toContain("canvas");
   });
@@ -81,7 +127,7 @@ describe("validateIconSpec", () => {
   });
 
   it("rejects styles the language does not allow", () => {
-    const outlineOnly = parseIconLanguage({ ...lucideInspired, style: { default: "outline", allowed: ["outline"] } });
+    const outlineOnly = parseIconLanguage({ ...lucideInspired, sizes: undefined, style: { default: "outline", allowed: ["outline"] } });
     const result = validateIconSpec(spec([{ primitive: "circle", x: 2, y: 2, size: 20 }], { style: "filled" }), outlineOnly);
     expect(rules(result)).toContain("style");
   });

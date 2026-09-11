@@ -10,6 +10,7 @@ import { definePrimitive, localRadius } from "../primitive.js";
 export const buildingPrimitive = definePrimitive({
   name: "building",
   category: "object",
+  opticalShape: "vertical",
   description: "A tall building with windows and a door.",
   box: { width: 20, height: 24 },
   keywords: ["building", "office", "company", "tower", "headquarters", "hq"],
@@ -31,6 +32,7 @@ export const buildingPrimitive = definePrimitive({
 export const warehousePrimitive = definePrimitive({
   name: "warehouse",
   category: "object",
+  opticalShape: "horizontal",
   description: "A wide building with a pitched roof and a bay door.",
   box: { width: 24, height: 20 },
   keywords: ["warehouse", "depot", "storage", "hub", "facility", "plant", "factory"],
@@ -44,6 +46,7 @@ export const warehousePrimitive = definePrimitive({
 export const packagePrimitive = definePrimitive({
   name: "package",
   category: "object",
+  opticalShape: "square",
   description: "An isometric box.",
   box: { width: 24, height: 24 },
   keywords: ["package", "box", "parcel", "shipment", "cargo", "goods", "pallet"],
@@ -57,6 +60,7 @@ export const packagePrimitive = definePrimitive({
 export const documentPrimitive = definePrimitive({
   name: "document",
   category: "object",
+  opticalShape: "vertical",
   description: "A sheet of paper with a folded corner.",
   box: { width: 20, height: 24 },
   keywords: ["document", "file", "report", "invoice", "page", "paper", "contract", "note"],
@@ -70,6 +74,7 @@ export const documentPrimitive = definePrimitive({
 export const personPrimitive = definePrimitive({
   name: "person",
   category: "object",
+  opticalShape: "vertical",
   description: "Head and shoulders of a person.",
   box: { width: 20, height: 24 },
   keywords: ["person", "user", "customer", "driver", "employee", "people", "profile", "account"],
@@ -90,6 +95,7 @@ export const personPrimitive = definePrimitive({
 export const vehiclePrimitive = definePrimitive({
   name: "vehicle",
   category: "object",
+  opticalShape: "horizontal",
   description: "A delivery truck facing right.",
   box: { width: 24, height: 18 },
   keywords: ["vehicle", "truck", "delivery", "shipping", "transport", "lorry", "van", "fleet"],
@@ -106,6 +112,7 @@ export const vehiclePrimitive = definePrimitive({
 export const devicePrimitive = definePrimitive({
   name: "device",
   category: "object",
+  opticalShape: "horizontal",
   description: "A monitor on a stand.",
   box: { width: 24, height: 20 },
   keywords: ["device", "monitor", "screen", "display", "computer", "laptop", "terminal", "dashboard"],

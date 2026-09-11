@@ -1,7 +1,18 @@
-import type { IconLanguage, IconStyle, StrokeCap, StrokeJoin } from "@icon-foundry/icon-language";
+import {
+  hasSize,
+  nearestTokens,
+  resolveTokens,
+  type IconLanguage,
+  type IconStyle,
+  type SizeTokens,
+  type StrokeCap,
+  type StrokeJoin,
+} from "@icon-foundry/icon-language";
 import {
   chain,
   defaultRegistry,
+  PathDataError,
+  pathShapeFromData,
   rotate,
   scale,
   shapeBounds,
@@ -13,7 +24,14 @@ import {
   type PrimitiveRegistry,
   type Shape,
 } from "@icon-foundry/icon-primitives";
-import { elementBox, type Alignment, type IconElement, type IconSpec, type StrokeOverride } from "@icon-foundry/icon-spec";
+import {
+  elementBox,
+  type Alignment,
+  type IconElement,
+  type IconSpec,
+  type PathElement,
+  type StrokeOverride,
+} from "@icon-foundry/icon-spec";
 
 export interface ResolvedStroke {
   width: number;
@@ -27,7 +45,7 @@ export interface ComposedShape {
   style: IconStyle;
   stroke: ResolvedStroke;
   color: string;
-  /** Name of the primitive that produced the shape. */
+  /** Name of the primitive that produced the shape, or "path" for freeform geometry. */
   primitive: string;
   /** JSON-pointer-like path to the source element, e.g. `elements[1].children[0]`. */
   source: string;
@@ -38,8 +56,10 @@ export interface ComposedIcon {
   language: string;
   canvas: number;
   style: IconStyle;
+  /** Tokens of the optical size the icon was composed with. */
+  tokens: SizeTokens;
   shapes: ComposedShape[];
-  /** Number of leaf (primitive) elements in the spec. */
+  /** Number of leaf (primitive or path) elements in the spec. */
   elementCount: number;
 }
 
@@ -122,11 +142,30 @@ export function placementMatrix(
   );
 }
 
+/** Parse a path element's data into shapes and its natural box. */
+export function pathElementGeometry(el: PathElement, source: string): { shapes: Shape[]; box: { width: number; height: number } } {
+  const list = Array.isArray(el.path) ? el.path : [el.path];
+  const shapes = list.map((d, i) => {
+    try {
+      return pathShapeFromData(d, el.fillable);
+    } catch (error) {
+      if (error instanceof PathDataError) throw new ComposeError(error.message, `${source}.path[${i}]`);
+      throw error;
+    }
+  });
+  if (el.natural) return { shapes, box: el.natural };
+  const b = unionBounds(shapes.map(shapeBounds));
+  if (b.minX < -1e-6 || b.minY < -1e-6) {
+    throw new ComposeError("path geometry must start at or after 0,0 unless `natural` is given", `${source}.path`);
+  }
+  return { shapes, box: { width: b.maxX, height: b.maxY } };
+}
+
 function composeElement(
   el: IconElement,
   source: string,
   inherited: Inherited,
-  language: IconLanguage,
+  tokens: SizeTokens,
   registry: PrimitiveRegistry,
   out: ComposedShape[],
   virtualCanvas: number,
@@ -141,11 +180,20 @@ function composeElement(
     const local: ComposedShape[] = [];
     let count = 0;
     el.children.forEach((child, i) => {
-      count += composeElement(child, `${source}.children[${i}]`, next, language, registry, local, groupCanvas);
+      count += composeElement(child, `${source}.children[${i}]`, next, tokens, registry, local, groupCanvas);
     });
     const m = placementMatrix(el, { width: groupCanvas, height: groupCanvas });
     for (const item of local) out.push({ ...item, shape: transformShape(item.shape, m) });
     return count;
+  }
+
+  if (el.path !== undefined) {
+    const { shapes, box: natural } = pathElementGeometry(el, source);
+    const m = placementMatrix(el, natural);
+    for (const shape of shapes) {
+      out.push({ shape: transformShape(shape, m), style, stroke, color, primitive: "path", source });
+    }
+    return 1;
   }
 
   if (!registry.has(el.primitive)) {
@@ -157,7 +205,7 @@ function composeElement(
   const shapes = primitive.build({
     style,
     strokeWidth: stroke.width,
-    cornerRadius: language.cornerRadius,
+    cornerRadius: tokens.cornerRadius,
     scale: s,
   });
   const m = placementMatrix(el, primitive.box);
@@ -174,16 +222,19 @@ function composeElement(
 export function compose(spec: IconSpec, language: IconLanguage, options: ComposeOptions = {}): ComposedIcon {
   const registry = options.registry ?? defaultRegistry;
   const style = spec.style ?? language.style.default;
+  // A spec on an unknown canvas still composes (with the nearest size's
+  // tokens) so the validator can show it alongside the canvas error.
+  const tokens = hasSize(language, spec.canvas) ? resolveTokens(language, spec.canvas) : nearestTokens(language, spec.canvas);
   const inherited: Inherited = {
     style,
-    stroke: mergeStroke(language.stroke, spec.stroke),
+    stroke: mergeStroke(tokens.stroke, spec.stroke),
     color: language.colors.allowed[0] ?? "currentColor",
   };
 
   const shapes: ComposedShape[] = [];
   let elementCount = 0;
   spec.elements.forEach((el, i) => {
-    elementCount += composeElement(el, `elements[${i}]`, inherited, language, registry, shapes, spec.canvas);
+    elementCount += composeElement(el, `elements[${i}]`, inherited, tokens, registry, shapes, spec.canvas);
   });
 
   return {
@@ -191,9 +242,16 @@ export function compose(spec: IconSpec, language: IconLanguage, options: Compose
     language: language.id,
     canvas: spec.canvas,
     style,
+    tokens,
     shapes,
     elementCount,
   };
+}
+
+/** Index of the top-level element a composed shape came from. */
+export function topLevelIndex(source: string): number {
+  const m = /^elements\[(\d+)\]/.exec(source);
+  return m ? Number(m[1]) : -1;
 }
 
 /** Centreline bounds of the whole composed icon. */

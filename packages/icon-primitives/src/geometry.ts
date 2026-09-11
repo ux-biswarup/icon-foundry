@@ -494,3 +494,137 @@ export function isFiniteShape(shape: Shape): boolean {
       });
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Sampling and distance                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Approximate a shape as one or more polylines. Used for gap measurement and
+ * other geometry checks. Closed shapes repeat their first point at the end.
+ */
+export function sampleShape(shape: Shape, samples = ARC_SAMPLES): Point[][] {
+  switch (shape.kind) {
+    case "line":
+      return [[[shape.x1, shape.y1], [shape.x2, shape.y2]]];
+    case "polyline": {
+      const pts = [...shape.points];
+      if (shape.closed && pts.length > 1) pts.push(pts[0]!);
+      return [pts];
+    }
+    case "rect": {
+      const { x, y, width: w, height: h } = shape;
+      return [[[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]];
+    }
+    case "circle": {
+      const pts: Point[] = [];
+      for (let i = 0; i <= samples; i++) {
+        const t = (i / samples) * Math.PI * 2;
+        pts.push([shape.cx + shape.r * Math.cos(t), shape.cy + shape.r * Math.sin(t)]);
+      }
+      return [pts];
+    }
+    case "path": {
+      const out: Point[][] = [];
+      let current: Point[] = [];
+      let cx = 0;
+      let cy = 0;
+      let startX = 0;
+      let startY = 0;
+      const flush = () => {
+        if (current.length > 1) out.push(current);
+        current = [];
+      };
+      for (const cmd of shape.commands) {
+        switch (cmd.c) {
+          case "M":
+            flush();
+            startX = cx = cmd.x;
+            startY = cy = cmd.y;
+            current.push([cx, cy]);
+            break;
+          case "L":
+            cx = cmd.x;
+            cy = cmd.y;
+            current.push([cx, cy]);
+            break;
+          case "A":
+            current.push(...sampleArc(cx, cy, cmd, samples).slice(1));
+            cx = cmd.x;
+            cy = cmd.y;
+            break;
+          case "C":
+            current.push(...sampleCubic(cx, cy, cmd, samples).slice(1));
+            cx = cmd.x;
+            cy = cmd.y;
+            break;
+          case "Z":
+            current.push([startX, startY]);
+            cx = startX;
+            cy = startY;
+            break;
+        }
+      }
+      flush();
+      return out;
+    }
+  }
+}
+
+function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boolean {
+  const cross = (o: Point, p: Point, q: Point) => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
+  const d1 = cross(c, d, a);
+  const d2 = cross(c, d, b);
+  const d3 = cross(a, b, c);
+  const d4 = cross(a, b, d);
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+  const onSegment = (p: Point, q: Point, r: Point) =>
+    Math.min(p[0], r[0]) - 1e-9 <= q[0] && q[0] <= Math.max(p[0], r[0]) + 1e-9 &&
+    Math.min(p[1], r[1]) - 1e-9 <= q[1] && q[1] <= Math.max(p[1], r[1]) + 1e-9;
+  if (Math.abs(d1) < 1e-9 && onSegment(c, a, d)) return true;
+  if (Math.abs(d2) < 1e-9 && onSegment(c, b, d)) return true;
+  if (Math.abs(d3) < 1e-9 && onSegment(a, c, b)) return true;
+  if (Math.abs(d4) < 1e-9 && onSegment(a, d, b)) return true;
+  return false;
+}
+
+function pointSegmentDistance(p: Point, a: Point, b: Point): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  let t = len2 === 0 ? 0 : ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+function segmentDistance(a: Point, b: Point, c: Point, d: Point): number {
+  if (segmentsIntersect(a, b, c, d)) return 0;
+  return Math.min(
+    pointSegmentDistance(a, c, d),
+    pointSegmentDistance(b, c, d),
+    pointSegmentDistance(c, a, b),
+    pointSegmentDistance(d, a, b),
+  );
+}
+
+/** Minimum centreline distance between two shapes. Zero when they cross or touch. */
+export function shapeDistance(a: Shape, b: Shape): number {
+  let best = Infinity;
+  for (const pa of sampleShape(a)) {
+    for (const pb of sampleShape(b)) {
+      for (let i = 0; i < pa.length - 1; i++) {
+        for (let j = 0; j < pb.length - 1; j++) {
+          const d = segmentDistance(pa[i]!, pa[i + 1]!, pb[j]!, pb[j + 1]!);
+          if (d < best) best = d;
+          if (best === 0) return 0;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/** True when the two shapes' sampled outlines cross or touch. */
+export function shapesIntersect(a: Shape, b: Shape): boolean {
+  return shapeDistance(a, b) === 0;
+}

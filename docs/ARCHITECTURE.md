@@ -93,11 +93,45 @@ and falls back to the keyword parser if the answer is unusable. Layout is done
 by deterministic recipes. No vendor SDK is imported; callers pass a
 `complete(prompt) => Promise<string>` function.
 
+### Optical sizes are keyed by canvas
+
+A language carries `sizes`, one token set per canvas (stroke, safe area,
+grid, corner radius, detail budget, negative space, keyline boxes). The
+spec's `canvas` selects the size; `resolveTokens(language, canvas)` is the
+only way downstream code reads tokens. The flat fields on `IconLanguage` are
+the default size's tokens, kept for convenience. A spec on an unknown canvas
+still composes with the nearest size so the validator can show geometry next
+to the canvas error.
+
+### Optical shapes are keyline boxes
+
+Each size has four keyline boxes (square, circle, horizontal, vertical),
+derived Material/SF-style from the content area unless the language overrides
+them. Every primitive declares an optical shape; recipes fit a subject into
+the matching box so a wide warehouse and a round clock read as the same size.
+
+### Negative space is measured, crossings are exempt
+
+`minNegativeSpace` is enforced between shapes of different top-level
+elements: visible gap = centreline distance − half of each stroke (zero for
+filled areas). Shapes that cross are treated as a deliberate overlap and
+skipped. Recipes shrink the subject in grid steps until the rule passes, so
+generated icons never merge into a blur at small sizes.
+
+### Freeform geometry stays inside the language
+
+A `path` element carries SVG path data (M, L, H, V, C, A, Z) authored in a
+natural box and is placed exactly like a primitive. A user-defined element is
+the same idea packaged as a reusable primitive (`definePathPrimitive`), which
+is the format a library's `elements/` folder uses and the format the agent
+drafts when the vocabulary lacks a subject. In both cases stroke, caps, joins,
+style, and validation come from the language; the geometry only says where
+lines go.
+
 ## Known limitations
 
-- Negative-space checks (`minNegativeSpace`) are declared in the language
-  schema but not yet enforced.
 - Filled icons have no interior cut-outs.
+- No construction-policy rules yet (allowed angles, closed over open).
 - Layout recipes are deliberately simple (single subject, one or two badges).
 - The Figma plugin creates local components; team-library publishing is a
   manual step in Figma.

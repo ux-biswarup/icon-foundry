@@ -38,6 +38,20 @@ describe("parseIconSpec", () => {
     ).toThrow(/exactly one of/);
   });
 
+  it("parses freeform path elements", () => {
+    const spec = parseIconSpec({
+      ...valid,
+      elements: [{ path: "M0 0 L10 0 L10 10 Z", x: 2, y: 2, size: 20, natural: { width: 10, height: 10 } }],
+    });
+    expect(spec.elements[0]).toMatchObject({ path: "M0 0 L10 0 L10 10 Z", natural: { width: 10, height: 10 } });
+    expect(parseIconSpec({ ...valid, elements: [{ path: ["M0 0 L1 1", "M1 0 L0 1"], x: 2, y: 2, size: 20 }] }).elements[0])
+      .toHaveProperty("path", ["M0 0 L1 1", "M1 0 L0 1"]);
+    expect(() => parseIconSpec({ ...valid, elements: [{ path: "", x: 2, y: 2, size: 20 }] })).toThrow(/path data/);
+    expect(() =>
+      parseIconSpec({ ...valid, elements: [{ path: "M0 0", primitive: "circle", x: 2, y: 2, size: 20 }] }),
+    ).toThrow(/exactly one of/);
+  });
+
   it("requires a size or width+height", () => {
     expect(() => parseIconSpec({ ...valid, elements: [{ primitive: "circle", x: 0, y: 0 }] })).toThrow(
       /needs `size`/,

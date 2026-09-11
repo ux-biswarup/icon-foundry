@@ -3,6 +3,7 @@ import type {
   GroupElement,
   IconElement,
   IconSpec,
+  PathElement,
   PrimitiveElement,
   IconStyle,
   StrokeCap,
@@ -87,9 +88,10 @@ export function parseIconElement(value: unknown, path = "elements[0]"): IconElem
   if (!isRecord(value)) fail(path, "expected an object");
 
   const hasPrimitive = value.primitive !== undefined;
+  const hasPath = value.path !== undefined;
   const hasChildren = value.children !== undefined;
-  if (hasPrimitive === hasChildren) {
-    fail(path, "an element must have exactly one of `primitive` or `children`");
+  if ([hasPrimitive, hasPath, hasChildren].filter(Boolean).length !== 1) {
+    fail(path, "an element must have exactly one of `primitive`, `path` or `children`");
   }
 
   const x = finite(value.x, `${path}.x`);
@@ -126,6 +128,24 @@ export function parseIconElement(value: unknown, path = "elements[0]"): IconElem
       fail(`${path}.primitive`, "expected a non-empty string");
     }
     return { ...base, primitive: value.primitive };
+  }
+
+  if (hasPath) {
+    const raw = value.path;
+    const list = Array.isArray(raw) ? raw : [raw];
+    if (list.length === 0 || !list.every((d) => typeof d === "string" && d.trim().length > 0)) {
+      fail(`${path}.path`, "expected a path data string or a non-empty array of them");
+    }
+    const el: PathElement = { ...base, path: Array.isArray(raw) ? (list as string[]) : (raw as string) };
+    if (value.natural !== undefined) {
+      if (!isRecord(value.natural)) fail(`${path}.natural`, "expected { width, height }");
+      const w = finite(value.natural.width, `${path}.natural.width`);
+      const h = finite(value.natural.height, `${path}.natural.height`);
+      if (w < 0 || h < 0) fail(`${path}.natural`, "width and height must not be negative");
+      el.natural = { width: w, height: h };
+    }
+    if (value.fillable !== undefined) el.fillable = bool(value.fillable, `${path}.fillable`);
+    return el;
   }
 
   if (!Array.isArray(value.children) || value.children.length === 0) {

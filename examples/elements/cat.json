@@ -1,0 +1,17 @@
+{
+  "name": "cat",
+  "category": "object",
+  "description": "A cat face: pointed ears, closed silhouette, two dot eyes.",
+  "keywords": [
+    "cat",
+    "kitten",
+    "pet"
+  ],
+  "opticalShape": "square",
+  "origin": "draft",
+  "outline": [
+    "M0 20 L0 6 L6 0 L9 3 L15 3 L18 0 L24 6 L24 20 Z",
+    "M8 12 L8 12.01",
+    "M16 12 L16 12.01"
+  ]
+}

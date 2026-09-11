@@ -2,8 +2,8 @@
   "$schema": "../language.schema.json",
   "id": "lucide-inspired",
   "name": "Lucide-inspired",
-  "version": "0.1.0",
-  "description": "A hand-authored starter language following the principles of Lucide: 24px canvas, 2px round strokes, 2px safe area, low detail. Use it as a template for your own language.",
+  "version": "0.2.0",
+  "description": "A hand-authored starter language following the principles of Lucide: 24px canvas, 2px round strokes, 2px safe area, low detail, plus a 16px optical size. Use it as a template for your own language.",
   "canvas": 24,
   "grid": 1,
   "safeArea": 2,
@@ -25,5 +25,15 @@
     "maxElements": 4,
     "maxShapes": 12
   },
-  "minNegativeSpace": 2
+  "minNegativeSpace": 2,
+  "sizes": [
+    {
+      "canvas": 16,
+      "safeArea": 1,
+      "stroke": { "width": 1.5 },
+      "cornerRadius": 1.5,
+      "limits": { "maxElements": 3, "maxShapes": 8 },
+      "minNegativeSpace": 1.5
+    }
+  ]
 }

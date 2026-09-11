@@ -30,10 +30,20 @@ describe("parseIntentKeywords", () => {
 });
 
 describe("intentToSpec", () => {
-  it("produces a valid spec for the single-subject recipe", () => {
-    const spec = intentToSpec({ subject: "warehouse", modifiers: [], text: "warehouse" }, lucideInspired);
-    expect(spec.elements).toHaveLength(1);
-    expect(validateIconSpec(spec, lucideInspired).valid).toBe(true);
+  it("fits a single subject into the keyline box of its optical shape", () => {
+    const wide = intentToSpec({ subject: "warehouse", modifiers: [], text: "warehouse" }, lucideInspired);
+    expect(wide.elements[0]).toMatchObject({ primitive: "warehouse", x: 2, y: 4, width: 20, height: 16 });
+    const tall = intentToSpec({ subject: "document", modifiers: [], text: "document" }, lucideInspired);
+    expect(tall.elements[0]).toMatchObject({ x: 4, y: 2, width: 16, height: 20 });
+    const round = intentToSpec({ subject: "clock", modifiers: [], text: "clock" }, lucideInspired);
+    expect(round.elements[0]).toMatchObject({ x: 2, y: 2, width: 20, height: 20 });
+    expect(validateIconSpec(wide, lucideInspired).issues).toEqual([]);
+  });
+
+  it("lays out for a requested optical size", () => {
+    const spec = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "cold warehouse" }, lucideInspired, { canvas: 16 });
+    expect(spec.canvas).toBe(16);
+    expect(validateIconSpec(spec, lucideInspired).issues).toEqual([]);
   });
 
   it("produces a valid, on-grid badge layout for one and two modifiers", () => {
@@ -41,6 +51,7 @@ describe("intentToSpec", () => {
       const spec = intentToSpec({ subject: "warehouse", modifiers, text: "temperature controlled warehouse" }, lucideInspired);
       const result = validateIconSpec(spec, lucideInspired);
       expect(result.issues).toEqual([]);
+      expect(result.passed).toContain("negativeSpace");
       expect(spec.name).toBe("temperature-controlled-warehouse");
     }
   });

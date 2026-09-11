@@ -52,20 +52,39 @@ interface ElementBase {
 /** A single primitive placed on the canvas. */
 export interface PrimitiveElement extends ElementBase {
   primitive: string;
+  path?: never;
   children?: never;
+}
+
+/**
+ * Freeform geometry: one or more SVG path data strings authored in a natural
+ * box, fitted into the element box exactly like a primitive. This is how
+ * subjects with no primitive are drawn, by a designer or by the agent, while
+ * the language still owns stroke, style, and validation.
+ */
+export interface PathElement extends ElementBase {
+  primitive?: never;
+  children?: never;
+  /** SVG path data (M, L, H, V, C, A, Z; absolute or relative). */
+  path: string | string[];
+  /** Natural box of the path data. Derived from geometry bounds if omitted. */
+  natural?: { width: number; height: number };
+  /** Force fillable on or off; defaults to "closed paths are fillable". */
+  fillable?: boolean;
 }
 
 /** A group of elements laid out in a virtual canvas and then scaled into the
  * group's box as one unit. */
 export interface GroupElement extends ElementBase {
   primitive?: never;
+  path?: never;
   children: IconElement[];
   /** Size of the virtual canvas the children are laid out in. Defaults to the
    * spec canvas. */
   canvas?: number;
 }
 
-export type IconElement = PrimitiveElement | GroupElement;
+export type IconElement = PrimitiveElement | PathElement | GroupElement;
 
 export interface IconSpec {
   /** kebab-case identifier, e.g. "temperature-warehouse". */
