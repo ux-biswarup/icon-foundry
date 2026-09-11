@@ -46,9 +46,11 @@ Figma component
 
 **A first-class validator.** Every icon is checked against its language before it counts as done: optical size, safe area, stroke width, caps, joins, colours, grid alignment, negative space between elements, geometry sanity, and complexity. Results are structured so tools can show a checklist instead of a wall of text.
 
-**A Figma plugin.** Describe an icon, pick the language and style, preview it at 96px and 24px, read the validation checklist, edit the IconSpec if you want, and create a native Figma component named predictably as `icon/<style>/<name>`. The spec is stored on the component so it can be regenerated later.
+**A studio in the browser.** A library page with every icon at true size, searchable by concept, with a draft, review, published, deprecated lifecycle. A create page where you describe an icon and get three validated candidates with a rationale each, approve one, or refine it in words. A language page and an elements page showing the vocabulary. Your library is a plain folder of JSON that you own and commit to Git; the app opens it directly from disk.
 
-**An optional AI layer.** A language model may translate "filled icon for a temperature controlled warehouse" into `{ subject: "warehouse", modifiers: ["thermometer"], style: "filled" }`. That is all it does. Deterministic code chooses the layout, renders, and validates. A keyword parser handles the same job offline, and the plugin ships with network access disabled.
+**An optional agent, with any model.** With a model configured, the create page becomes agentic: the model operates the deterministic core through tools, reuses existing elements, drafts a new element only when the vocabulary lacks the subject, and every draft is validated before you see it. Anthropic, OpenAI, Google, any OpenAI-compatible endpoint such as Ollama, or your own adapter. Without a model, the same page arranges the existing vocabulary deterministically. Keys stay on the server side.
+
+**A Figma plugin.** Describe an icon, pick the language and style, preview it, read the validation checklist, and create a native Figma component named predictably as `icon/<style>/<name>`. The spec is stored on the component so it can be regenerated later.
 
 ## How it works
 
@@ -149,6 +151,20 @@ pnpm check        # typecheck, tests, plugin build
 pnpm examples     # renders examples/*.json to examples/out/ and prints validation
 ```
 
+To run the studio:
+
+```bash
+pnpm dev          # http://localhost:5180
+```
+
+It opens with a browser-only demo library. Use **Open folder…** to work on a real library folder; an empty folder becomes a new library. To enable the agent, copy `apps/web/.env.example` to `apps/web/.env` and set a provider:
+
+```bash
+ICON_FOUNDRY_PROVIDER=anthropic          # or openai, google, openai-compatible
+ICON_FOUNDRY_MODEL=claude-sonnet-5
+ANTHROPIC_API_KEY=...
+```
+
 To try the Figma plugin locally:
 
 1. Run `pnpm build`.
@@ -160,6 +176,7 @@ To try the Figma plugin locally:
 
 ```text
 apps/
+  web/                 The studio: library, create, language, elements (Vite + React)
   figma-plugin/        Figma adapter (UI runs the core, sandbox creates the component)
 packages/
   icon-spec/           IconSpec types and parser (the canonical representation)
@@ -168,7 +185,9 @@ packages/
   icon-composer/       Deterministic layout engine
   icon-renderer/       SVG renderer
   icon-validator/      Rule engine and built-in rules
-  icon-ai/             Optional intent parsing (keywords offline, LLM adapter)
+  icon-ai/             Keyword intent parsing and layout recipes
+  icon-library/        Team-owned library folder format, lifecycle, search
+  icon-agent/          Create agent: tools over the core, planner, pluggable providers
 languages/
   lucide-inspired/     Starter language, plus a JSON schema for authoring your own
 examples/              IconSpec examples, including an intentionally invalid one
@@ -180,7 +199,7 @@ docs/                  Specification and architecture decisions
 - **New primitive.** Add a `definePrimitive` to `packages/icon-primitives/src/{shapes,objects,symbols}`. The registry, the intent parser, and the test suite pick it up automatically.
 - **New rule.** Add a `defineRule` in `packages/icon-validator/src/rules` and a failing-spec test.
 - **New language.** Copy `languages/lucide-inspired/language.json`, change the id and tokens, and register it in `@icon-foundry/icon-language`.
-- **Your own model.** Pass any `complete(prompt) => Promise<string>` function to `createLlmIntentParser`. No vendor SDK is bundled.
+- **Your own model.** Implement the small `AgentModel` contract in `@icon-foundry/icon-agent`, or point the OpenAI-compatible provider at any endpoint. Vendor SDKs are only imported in the provider adapters.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

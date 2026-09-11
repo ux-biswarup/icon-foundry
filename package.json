@@ -13,9 +13,11 @@
     "typecheck": "tsc -p tsconfig.json && pnpm -r --if-present run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "pnpm -r --filter ./apps/figma-plugin run build",
+    "build": "pnpm -r --filter ./apps/figma-plugin --filter ./apps/web run build",
     "examples": "tsx scripts/render-examples.ts",
-    "check": "pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "dev": "pnpm --filter @icon-foundry/web dev",
+    "start": "pnpm --filter @icon-foundry/web start"
   },
   "devDependencies": {
     "@icon-foundry/icon-ai": "workspace:*",

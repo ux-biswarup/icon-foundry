@@ -1,6 +1,6 @@
 # Current capabilities
 
-Status as of 2026-09-11 (updated after the first schema slice). This document describes what the
+Status as of 2026-09-12 (updated after the web studio's first slice). This document describes what the
 system does today, not what it is planned to do. It is the baseline for the
 discussion about free-form icon generation.
 
@@ -12,6 +12,27 @@ one of 23 hand-drawn primitives, arranges them with one of two layout recipes,
 renders SVG using the tokens of an Icon Language, validates the result against
 that language, and creates a native Figma component. It cannot draw anything
 that is not already a primitive. No model, network, or API key is involved.
+
+## What a designer can do in the web studio (`pnpm dev`)
+
+| Step | Works today | Notes |
+| --- | --- | --- |
+| Open a library folder from disk | Yes (Chrome, Edge) | File System Access API; the folder is remembered. Empty folder becomes a new library. |
+| Try without a folder | Yes | Browser-only demo library seeded with four icons. |
+| Browse the library at true size, search by concept | Yes | Search covers name, tags, concepts, description, and the keywords of the elements used. |
+| Move icons through draft → review → published → deprecated, delete, export SVG | Yes | Deletion only from draft or deprecated. |
+| Edit an icon's definition, tags, concepts | Yes | |
+| Describe an icon and get three candidates with rationale and checklist | Yes | Without a model: deterministic variants of existing vocabulary. With a model: agentic drafting via tools. |
+| Approve a candidate into the library | Yes | New elements the candidate needed are saved as draft elements. |
+| Refine in words, "show me more" | Yes | Feedback and the focused candidate are sent to the agent. Planner ignores feedback text. |
+| Read the language and its keyline boxes | Yes | Read-only until the setup board lands. |
+| See and approve elements | Yes | Approving an element is a human action on the Elements page. |
+| Sync to Figma from the web | No | Plugin bridge is the next slice. |
+
+Model providers: Anthropic, OpenAI, Google, any OpenAI-compatible endpoint
+(Ollama, LM Studio, vLLM, OpenRouter…), or a custom `AgentModel`. Configured
+by environment on the server side; see `apps/web/.env.example`. Not yet
+exercised against a live provider in this repository.
 
 ## What a designer can do in the Figma plugin
 
@@ -126,10 +147,10 @@ primitives.
 
 ## Known gaps, in order of how often a designer will hit them
 
-1. **Fixed vocabulary in the plugin.** The keyword parser still fails on subjects without a primitive. Freeform paths and user-defined elements exist in the core but nothing drafts them yet; that is the agent's job in the web app.
+1. **New subjects need a model.** Without a configured model, subjects outside the vocabulary fail with a clear message; the agent path that drafts new elements has been tested only with a fake model, not a live provider.
 2. **Filled style loses detail.** No cut-out support, so a filled warning has no exclamation mark and a filled warehouse has no door.
 3. **Two layout recipes only.** No side-by-side, stacked, or contained arrangements.
-4. **No round trip from Figma.** Components carry their spec but cannot be reopened for editing.
+4. **No Figma bridge yet.** The plugin still authors on its own; it does not read a library folder or sync components.
 5. **One language.** The starter language is the only one shipped.
 6. **No construction rules.** Angles, closed-over-open, and rounding policy are not yet checked.
 

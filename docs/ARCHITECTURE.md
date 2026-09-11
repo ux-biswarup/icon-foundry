@@ -25,7 +25,10 @@ touches geometry.
 | `@icon-foundry/icon-renderer` | Composed geometry → compact deterministic SVG. | composer, language, primitives, spec |
 | `@icon-foundry/icon-validator` | Rules that check a spec and its composed geometry against the language. | composer, language, primitives, spec |
 | `@icon-foundry/icon-ai` | Optional semantic layer: keyword intent parser (no network), provider-agnostic LLM adapter, deterministic layout recipes that turn intent into an `IconSpec`. | spec, language, primitives, validator (tests) |
-| `apps/figma-plugin` | Adapter: runs the core in the plugin UI, hands a finished SVG to the sandbox, which creates a native component. | all of the above |
+| `@icon-foundry/icon-library` | The team-owned library folder format (manifest, icons, elements, optional language), lifecycle, search, and a `FileStore` abstraction over disk, browser, or memory. | spec, language, primitives |
+| `@icon-foundry/icon-agent` | The Create agent: tools over the deterministic core, a planner that works without a model, the `AgentModel` contract, and AI SDK provider adapters (`./providers`). | ai, composer, language, library, primitives, renderer, spec, validator |
+| `apps/web` | The studio: Library, Create, Language, Elements over a library folder (File System Access API) or browser storage. The agent runs in a server route so keys never reach the browser. | all of the above |
+| `apps/figma-plugin` | Adapter: runs the core in the plugin UI, hands a finished SVG to the sandbox, which creates a native component. Becomes a connect/sync/inspect bridge next. | core packages |
 
 Rules that keep the packages honest:
 
@@ -127,6 +130,25 @@ is the format a library's `elements/` folder uses and the format the agent
 drafts when the vocabulary lacks a subject. In both cases stroke, caps, joins,
 style, and validation come from the language; the geometry only says where
 lines go.
+
+### The library is a folder the team owns
+
+`@icon-foundry/icon-library` defines a plain-JSON folder format with a
+`format` version in its manifest. The model writes through to a `FileStore`
+on every mutation, so the folder is always the truth and Git is the review
+and history layer. The web app implements the store over the File System
+Access API and, for trying things out, over IndexedDB. The agent server
+receives a snapshot of the folder with each request and holds no state.
+
+### The agent is a tool loop over the core
+
+`createIcon` gives a model seven tools (search the library, list elements,
+read the language, deterministic layout, draft an icon, propose an element,
+leave a note). The model only chooses calls; we execute them, validate every
+draft, and reject candidates with errors. Without a model the planner
+arranges existing vocabulary into up to three variants. Providers are behind
+the `AgentModel` contract; the AI SDK adapter is the only place vendor
+packages are imported.
 
 ## Known limitations
 
