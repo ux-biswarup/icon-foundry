@@ -1,0 +1,17 @@
+{
+  "name": "add-document",
+  "language": "lucide-inspired",
+  "canvas": 24,
+  "meta": { "description": "Create a new document; the plus is a nested group so it can be reused as a badge" },
+  "elements": [
+    { "primitive": "document", "x": 2, "y": 2, "width": 20, "height": 20, "align": { "x": "start" } },
+    {
+      "x": 14,
+      "y": 14,
+      "size": 8,
+      "children": [
+        { "primitive": "plus", "x": 4, "y": 4, "size": 16 }
+      ]
+    }
+  ]
+}

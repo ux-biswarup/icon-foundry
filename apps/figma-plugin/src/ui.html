@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font: 11px/1.45 Inter, -apple-system, system-ui, sans-serif;
+      }
+      body { margin: 0; padding: 12px; color: var(--figma-color-text); background: var(--figma-color-bg); }
+      h1 { font-size: 12px; font-weight: 600; margin: 0 0 12px; }
+      label { display: block; font-weight: 600; margin: 10px 0 4px; color: var(--figma-color-text-secondary); }
+      input, select, textarea, button {
+        font: inherit; color: inherit; width: 100%; box-sizing: border-box;
+        border: 1px solid var(--figma-color-border); border-radius: 4px; padding: 6px 8px;
+        background: var(--figma-color-bg-secondary);
+      }
+      textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; min-height: 120px; resize: vertical; }
+      .row { display: flex; gap: 8px; }
+      .row > * { flex: 1; }
+      .styles { display: flex; gap: 8px; }
+      .styles label { flex: 1; margin: 0; font-weight: 500; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+      .styles input { width: auto; }
+      .preview {
+        display: flex; align-items: center; justify-content: center; gap: 16px;
+        padding: 16px; margin-top: 12px; border: 1px dashed var(--figma-color-border); border-radius: 6px;
+        background: var(--figma-color-bg-secondary);
+      }
+      .preview svg { color: var(--figma-color-text); }
+      .preview .lg svg { width: 96px; height: 96px; }
+      .preview .sm svg { width: 24px; height: 24px; }
+      ul.checks { list-style: none; padding: 0; margin: 10px 0 0; }
+      ul.checks li { padding: 2px 0; display: flex; gap: 6px; }
+      ul.checks li.error { color: var(--figma-color-text-danger); }
+      ul.checks li.warning { color: var(--figma-color-text-warning); }
+      ul.checks li.ok { color: var(--figma-color-text-success); }
+      .actions { display: flex; gap: 8px; margin-top: 12px; }
+      button.primary { background: var(--figma-color-bg-brand); color: var(--figma-color-text-onbrand); border-color: transparent; font-weight: 600; }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      details { margin-top: 12px; }
+      summary { cursor: pointer; color: var(--figma-color-text-secondary); font-weight: 600; }
+      .muted { color: var(--figma-color-text-secondary); }
+      .error-box { color: var(--figma-color-text-danger); margin-top: 8px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>Icon Foundry</h1>
+
+    <label for="description">Icon</label>
+    <input id="description" type="text" placeholder="temperature controlled warehouse" autofocus />
+
+    <div class="row">
+      <div>
+        <label for="language">Icon Language</label>
+        <select id="language"></select>
+      </div>
+      <div>
+        <label>Style</label>
+        <div class="styles">
+          <label><input type="radio" name="style" value="outline" checked /> Outline</label>
+          <label><input type="radio" name="style" value="filled" /> Filled</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="generate" class="primary">Generate</button>
+    </div>
+
+    <div class="preview" id="preview"><span class="muted">Describe an icon and press Generate.</span></div>
+    <ul class="checks" id="checks"></ul>
+    <div class="error-box" id="error"></div>
+
+    <details id="advanced">
+      <summary>IconSpec (editable)</summary>
+      <textarea id="spec" spellcheck="false"></textarea>
+      <div class="actions">
+        <button id="apply">Re-render from IconSpec</button>
+      </div>
+    </details>
+
+    <div class="actions">
+      <button id="create" class="primary" disabled>Create Component</button>
+      <button id="cancel">Close</button>
+    </div>
+
+    <!--SCRIPT-->
+  </body>
+</html>

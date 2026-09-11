@@ -1,0 +1,26 @@
+{
+  "name": "@icon-foundry/figma-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc -p tsconfig.main.json && tsc -p tsconfig.ui.json"
+  },
+  "dependencies": {
+    "@icon-foundry/icon-ai": "workspace:*",
+    "@icon-foundry/icon-composer": "workspace:*",
+    "@icon-foundry/icon-language": "workspace:*",
+    "@icon-foundry/icon-primitives": "workspace:*",
+    "@icon-foundry/icon-renderer": "workspace:*",
+    "@icon-foundry/icon-spec": "workspace:*",
+    "@icon-foundry/icon-validator": "workspace:*"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.100.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}

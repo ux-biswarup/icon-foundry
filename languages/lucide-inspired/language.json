@@ -1,0 +1,29 @@
+{
+  "$schema": "../language.schema.json",
+  "id": "lucide-inspired",
+  "name": "Lucide-inspired",
+  "version": "0.1.0",
+  "description": "A hand-authored starter language following the principles of Lucide: 24px canvas, 2px round strokes, 2px safe area, low detail. Use it as a template for your own language.",
+  "canvas": 24,
+  "grid": 1,
+  "safeArea": 2,
+  "stroke": {
+    "width": 2,
+    "cap": "round",
+    "join": "round"
+  },
+  "cornerRadius": 2,
+  "style": {
+    "default": "outline",
+    "allowed": ["outline", "filled"]
+  },
+  "colors": {
+    "allowed": ["currentColor"]
+  },
+  "detail": "low",
+  "limits": {
+    "maxElements": 4,
+    "maxShapes": 12
+  },
+  "minNegativeSpace": 2
+}

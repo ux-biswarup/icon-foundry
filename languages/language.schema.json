@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://icon-foundry.dev/schemas/language.schema.json",
+  "title": "Icon Language",
+  "description": "Versioned design rules that every icon in a set must follow.",
+  "type": "object",
+  "required": ["id", "name", "version", "canvas", "grid", "safeArea", "stroke", "cornerRadius", "style"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "name": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "canvas": { "type": "number", "exclusiveMinimum": 0 },
+    "grid": { "type": "number", "exclusiveMinimum": 0 },
+    "safeArea": { "type": "number", "minimum": 0 },
+    "stroke": {
+      "type": "object",
+      "required": ["width", "cap", "join"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "cap": { "enum": ["butt", "round", "square"] },
+        "join": { "enum": ["miter", "round", "bevel"] }
+      }
+    },
+    "cornerRadius": { "type": "number", "minimum": 0 },
+    "style": {
+      "type": "object",
+      "required": ["default"],
+      "additionalProperties": false,
+      "properties": {
+        "default": { "enum": ["outline", "filled"] },
+        "allowed": { "type": "array", "items": { "enum": ["outline", "filled"] }, "minItems": 1 }
+      }
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "detail": { "enum": ["low", "medium", "high"] },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxElements": { "type": "integer", "minimum": 1 },
+        "maxShapes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "minNegativeSpace": { "type": "number", "minimum": 0 }
+  }
+}

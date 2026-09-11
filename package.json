@@ -1,0 +1,38 @@
+{
+  "name": "icon-foundry",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A design-system-native icon foundry for creating, validating, and publishing custom icons in your own visual language.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.6.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && pnpm -r --if-present run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "pnpm -r --filter ./apps/figma-plugin run build",
+    "examples": "tsx scripts/render-examples.ts",
+    "check": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@icon-foundry/icon-ai": "workspace:*",
+    "@icon-foundry/icon-composer": "workspace:*",
+    "@icon-foundry/icon-language": "workspace:*",
+    "@icon-foundry/icon-primitives": "workspace:*",
+    "@icon-foundry/icon-renderer": "workspace:*",
+    "@icon-foundry/icon-spec": "workspace:*",
+    "@icon-foundry/icon-validator": "workspace:*",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

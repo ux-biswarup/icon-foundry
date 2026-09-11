@@ -1,0 +1,9 @@
+{
+  "name": "oversized-circle",
+  "language": "lucide-inspired",
+  "canvas": 24,
+  "meta": { "description": "Intentionally breaks the safe area and the grid, and overrides the stroke" },
+  "elements": [
+    { "primitive": "circle", "x": 0.5, "y": 0.5, "size": 23, "stroke": { "width": 3, "cap": "butt" }, "color": "#ff0000" }
+  ]
+}
