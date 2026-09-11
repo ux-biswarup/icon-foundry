@@ -1,7 +1,11 @@
 import type {
+  BadgeCorner,
   Box,
   DetailLevel,
   DetailLimits,
+  DiagonalDirection,
+  IconCharacter,
+  IconGrammar,
   IconLanguage,
   IconLanguageInput,
   IconStyle,
@@ -27,6 +31,25 @@ const STYLES: readonly IconStyle[] = ["outline", "filled"];
 const CAPS: readonly StrokeCap[] = ["butt", "round", "square"];
 const JOINS: readonly StrokeJoin[] = ["miter", "round", "bevel"];
 const DETAIL: readonly DetailLevel[] = ["low", "medium", "high"];
+const DIAGONALS: readonly DiagonalDirection[] = ["up-right", "up-left", "none"];
+const CORNERS: readonly BadgeCorner[] = ["top-right", "top-left", "bottom-right", "bottom-left"];
+
+/** A language that states nothing takes the permissive defaults. */
+export const DEFAULT_CHARACTER: IconCharacter = {
+  axes: { geometric: 50, minimal: 50, technical: 50, literal: 50 },
+  metaphors: { use: [], avoid: [] },
+  vocabulary: [],
+  principles: [],
+};
+
+export const DEFAULT_GRAMMAR: IconGrammar = {
+  angles: [],
+  angleTolerance: 1,
+  closedShapes: false,
+  diagonal: "none",
+  badge: { ratio: 0.35, corner: "top-right" },
+  silhouette: false,
+};
 export const OPTICAL_SHAPES: readonly OpticalShape[] = ["square", "circle", "horizontal", "vertical"];
 
 /** Default shape budgets per detail level, used when `limits` is omitted. */
@@ -132,6 +155,73 @@ function parseLimits(value: unknown, path: string, base: DetailLimits): DetailLi
   };
 }
 
+function strList(value: unknown, path: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail(path, "expected an array of strings");
+  return value.map((v, i) => str(v, `${path}[${i}]`));
+}
+
+function axis(value: unknown, path: string, fallback: number): number {
+  if (value === undefined) return fallback;
+  return num(value, path, { min: 0 }) > 100 ? fail(path, "must be between 0 and 100") : (value as number);
+}
+
+export function parseCharacter(value: unknown, path = "language.character"): IconCharacter {
+  if (value === undefined) return DEFAULT_CHARACTER;
+  if (!isRecord(value)) fail(path, "expected an object");
+  const axesIn = isRecord(value.axes) ? value.axes : {};
+  const metaphorsIn = isRecord(value.metaphors) ? value.metaphors : {};
+  const character: IconCharacter = {
+    axes: {
+      geometric: axis(axesIn.geometric, `${path}.axes.geometric`, DEFAULT_CHARACTER.axes.geometric),
+      minimal: axis(axesIn.minimal, `${path}.axes.minimal`, DEFAULT_CHARACTER.axes.minimal),
+      technical: axis(axesIn.technical, `${path}.axes.technical`, DEFAULT_CHARACTER.axes.technical),
+      literal: axis(axesIn.literal, `${path}.axes.literal`, DEFAULT_CHARACTER.axes.literal),
+    },
+    metaphors: {
+      use: strList(metaphorsIn.use, `${path}.metaphors.use`),
+      avoid: strList(metaphorsIn.avoid, `${path}.metaphors.avoid`),
+    },
+    vocabulary: strList(value.vocabulary, `${path}.vocabulary`),
+    principles: strList(value.principles, `${path}.principles`),
+  };
+  if (value.purpose !== undefined) character.purpose = str(value.purpose, `${path}.purpose`);
+  return character;
+}
+
+export function parseGrammar(value: unknown, path = "language.grammar"): IconGrammar {
+  if (value === undefined) return DEFAULT_GRAMMAR;
+  if (!isRecord(value)) fail(path, "expected an object");
+  const badgeIn = isRecord(value.badge) ? value.badge : {};
+  const angles =
+    value.angles === undefined
+      ? DEFAULT_GRAMMAR.angles
+      : (() => {
+          if (!Array.isArray(value.angles)) fail(`${path}.angles`, "expected an array of degrees");
+          return value.angles.map((a, i) => {
+            const deg = num(a, `${path}.angles[${i}]`, { min: 0 });
+            if (deg >= 180) fail(`${path}.angles[${i}]`, "angles are measured 0–180 (a line has no direction)");
+            return deg;
+          });
+        })();
+  const ratio = badgeIn.ratio === undefined ? DEFAULT_GRAMMAR.badge.ratio : num(badgeIn.ratio, `${path}.badge.ratio`, { exclusiveMin: 0 });
+  if (ratio >= 1) fail(`${path}.badge.ratio`, "must be smaller than 1");
+  return {
+    angles,
+    angleTolerance:
+      value.angleTolerance === undefined
+        ? DEFAULT_GRAMMAR.angleTolerance
+        : num(value.angleTolerance, `${path}.angleTolerance`, { min: 0 }),
+    closedShapes: value.closedShapes === undefined ? DEFAULT_GRAMMAR.closedShapes : Boolean(value.closedShapes),
+    diagonal: value.diagonal === undefined ? DEFAULT_GRAMMAR.diagonal : oneOf(value.diagonal, DIAGONALS, `${path}.diagonal`),
+    badge: {
+      ratio,
+      corner: badgeIn.corner === undefined ? DEFAULT_GRAMMAR.badge.corner : oneOf(badgeIn.corner, CORNERS, `${path}.badge.corner`),
+    },
+    silhouette: value.silhouette === undefined ? DEFAULT_GRAMMAR.silhouette : Boolean(value.silhouette),
+  };
+}
+
 function parseSize(value: Record<string, unknown>, path: string, base: SizeTokens): SizeTokens {
   const canvas = num(value.canvas, `${path}.canvas`, { exclusiveMin: 0 });
   const safeArea = value.safeArea === undefined ? base.safeArea : num(value.safeArea, `${path}.safeArea`, { min: 0 });
@@ -215,6 +305,8 @@ export function parseIconLanguage(value: unknown): IconLanguage {
     style: { default: defaultStyle, allowed: allowedStyles },
     colors: { allowed: allowedColors },
     detail,
+    character: parseCharacter(input.character),
+    grammar: parseGrammar(input.grammar),
     defaultCanvas: canvas,
     sizes,
   };

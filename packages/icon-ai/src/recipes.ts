@@ -68,15 +68,32 @@ export function intentToSpec(intent: IconIntent, language: IconLanguage, options
     return baseSpec(intent, language, tokens, [{ primitive: intent.subject, ...keyline }], "single", name);
   }
 
-  const badge = Math.max(g, snap(content * 0.35, g));
-  const badges: PrimitiveElement[] = [{ primitive: modifiers[0]!, x: C - S - badge, y: S, width: badge, height: badge }];
-  if (modifiers[1]) badges.push({ primitive: modifiers[1], x: S, y: S, width: badge, height: badge });
+  const { badge: badgeRule } = language.grammar;
+  const badge = Math.max(g, snap(content * badgeRule.ratio, g));
+  const top = badgeRule.corner.startsWith("top");
+  const right = badgeRule.corner.endsWith("right");
+  const badgeY = top ? S : C - S - badge;
+  const primaryX = right ? C - S - badge : S;
+  const secondaryX = right ? S : C - S - badge;
+  const badges: PrimitiveElement[] = [{ primitive: modifiers[0]!, x: primaryX, y: badgeY, width: badge, height: badge }];
+  if (modifiers[1]) badges.push({ primitive: modifiers[1], x: secondaryX, y: badgeY, width: badge, height: badge });
   const two = badges.length === 2;
+  // The subject retreats from the badge corner: down when badges sit on top.
+  const alignY = top ? ("end" as const) : ("start" as const);
+  const alignX = right ? ("start" as const) : ("end" as const);
 
   const candidate = (inset: number): IconSpec => {
+    const y = top ? keyline.y + inset : keyline.y;
     const subject: PrimitiveElement = two
-      ? { primitive: intent.subject, x: keyline.x, y: keyline.y + inset, width: keyline.width, height: keyline.height - inset, align: { x: "center", y: "end" } }
-      : { primitive: intent.subject, x: keyline.x, y: keyline.y + inset, width: keyline.width - inset, height: keyline.height - inset, align: { x: "start", y: "end" } };
+      ? { primitive: intent.subject, x: keyline.x, y, width: keyline.width, height: keyline.height - inset, align: { x: "center", y: alignY } }
+      : {
+          primitive: intent.subject,
+          x: right ? keyline.x : keyline.x + inset,
+          y,
+          width: keyline.width - inset,
+          height: keyline.height - inset,
+          align: { x: alignX, y: alignY },
+        };
     return baseSpec(intent, language, tokens, [subject, ...badges], "badge", name);
   };
 

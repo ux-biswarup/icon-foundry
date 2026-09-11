@@ -1,0 +1,28 @@
+{
+  "name": "document-plus-16",
+  "language": "technical",
+  "canvas": 16,
+  "meta": {
+    "description": "Create a document"
+  },
+  "elements": [
+    {
+      "primitive": "document",
+      "x": 3,
+      "y": 3.5,
+      "width": 7.5,
+      "height": 11.5,
+      "align": {
+        "x": "start",
+        "y": "end"
+      }
+    },
+    {
+      "primitive": "plus",
+      "x": 10,
+      "y": 1,
+      "width": 5,
+      "height": 5
+    }
+  ]
+}

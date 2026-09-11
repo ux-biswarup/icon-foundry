@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_CHARACTER,
+  DEFAULT_GRAMMAR,
   IconLanguageError,
   defaultOpticalBoxes,
   hasSize,
@@ -7,6 +9,7 @@ import {
   nearestTokens,
   parseIconLanguage,
   resolveTokens,
+  technical,
 } from "./index.js";
 
 const minimal = {
@@ -95,5 +98,50 @@ describe("parseIconLanguage", () => {
     expect(() => parseIconLanguage({ ...minimal, stroke: { width: 2, cap: "flat", join: "round" } })).toThrow(
       /stroke\.cap/,
     );
+  });
+});
+
+describe("character and grammar", () => {
+  it("reads the Technical language's character and grammar", () => {
+    expect(technical.id).toBe("technical");
+    expect(technical.defaultCanvas).toBe(16);
+    expect(resolveTokens(technical, 16).stroke.width).toBe(1.25);
+    expect(resolveTokens(technical, 24).stroke.width).toBe(1.5);
+    // Cursor's rule: a gap never smaller than 3 grid units.
+    const t16 = resolveTokens(technical, 16);
+    expect(t16.minNegativeSpace).toBe(3 * t16.grid);
+    expect(technical.grammar.angles).toEqual([0, 45, 90, 135]);
+    expect(technical.grammar.closedShapes).toBe(true);
+    expect(technical.grammar.diagonal).toBe("up-right");
+    expect(technical.grammar.badge).toEqual({ ratio: 0.35, corner: "top-right" });
+    expect(technical.character.axes.geometric).toBeGreaterThan(50);
+    expect(technical.character.principles.length).toBeGreaterThan(4);
+    expect(technical.character.metaphors.avoid).toContain("faces");
+  });
+
+  it("defaults to a permissive character and grammar when a language states neither", () => {
+    const lang = parseIconLanguage(minimal);
+    expect(lang.grammar).toEqual(DEFAULT_GRAMMAR);
+    expect(lang.character).toEqual(DEFAULT_CHARACTER);
+    expect(lang.grammar.angles).toEqual([]);
+    expect(lucideInspired.grammar.angles).toEqual([]);
+  });
+
+  it("validates grammar values", () => {
+    const g = (grammar: unknown) => () => parseIconLanguage({ ...minimal, grammar });
+    expect(g({ angles: [0, 180] })).toThrow(/measured 0–180/);
+    expect(g({ angles: 45 })).toThrow(/array of degrees/);
+    expect(g({ diagonal: "sideways" })).toThrow(/one of up-right/);
+    expect(g({ badge: { corner: "middle" } })).toThrow(/one of top-right/);
+    expect(g({ badge: { ratio: 1 } })).toThrow(/smaller than 1/);
+    expect(() => parseIconLanguage({ ...minimal, character: { axes: { geometric: 140 } } })).toThrow(/between 0 and 100/);
+  });
+
+  it("keeps partial grammar and character on top of the defaults", () => {
+    const lang = parseIconLanguage({ ...minimal, grammar: { angles: [0, 90] }, character: { purpose: "Tiny set." } });
+    expect(lang.grammar.angles).toEqual([0, 90]);
+    expect(lang.grammar.badge).toEqual(DEFAULT_GRAMMAR.badge);
+    expect(lang.character.purpose).toBe("Tiny set.");
+    expect(lang.character.principles).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import { builtInLanguages, parseIconLanguage, type IconLanguage } from "@icon-foundry/icon-language";
+import { DEFAULT_LANGUAGE_ID, builtInLanguages, parseIconLanguage, type IconLanguage } from "@icon-foundry/icon-language";
 import { defaultRegistry, definePathPrimitive, type PrimitiveRegistry } from "@icon-foundry/icon-primitives";
 import { parseIconSpec, type IconSpec } from "@icon-foundry/icon-spec";
 import type { FileStore } from "./store.js";
@@ -41,12 +41,13 @@ export function parseManifest(value: unknown): LibraryManifest {
   }
   if (typeof value.id !== "string" || !NAME.test(value.id)) throw new LibraryError("manifest.id: expected a kebab-case id");
   if (typeof value.name !== "string" || !value.name) throw new LibraryError("manifest.name: expected a name");
-  if (typeof value.language !== "string" || !value.language) throw new LibraryError("manifest.language: expected a language id");
+  const language = value.language === undefined ? DEFAULT_LANGUAGE_ID : value.language;
+  if (typeof language !== "string" || !language) throw new LibraryError("manifest.language: expected a language id");
   return {
     format: LIBRARY_FORMAT,
     id: value.id,
     name: value.name,
-    language: value.language,
+    language,
     ...(typeof value.description === "string" && { description: value.description }),
   };
 }

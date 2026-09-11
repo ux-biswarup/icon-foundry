@@ -1,0 +1,60 @@
+{
+  "$schema": "../language.schema.json",
+  "id": "technical",
+  "name": "Technical",
+  "version": "0.1.0",
+  "description": "Icons as technical drawings with a friendly finish. Two optical sizes like a typeface, a light stroke that does not chase the pixel grid, construction on 45° increments, closed shapes, and gaps wide enough to survive 16px.",
+
+  "character": {
+    "purpose": "Icons for a tool someone uses all day. They should be read, not noticed.",
+    "axes": { "geometric": 80, "minimal": 75, "technical": 70, "literal": 60 },
+    "metaphors": {
+      "use": ["containers", "arrows", "badges", "documents", "devices", "places"],
+      "avoid": ["faces", "hands", "skeuomorphic hardware", "fake depth", "drop shadows", "mascots"]
+    },
+    "vocabulary": [],
+    "principles": [
+      "An icon should not take your attention. Utilitarian, but never ugly or boring.",
+      "Closer to a technical drawing than an illustration: a diagram with a friendly finish.",
+      "Keep the natural proportions of real objects. A pencil stays tall and narrow, a banknote stays wide. Distorted proportions read as a toy.",
+      "Draw a recurring part the same way every time it appears. Consistency across the set beats cleverness in one icon.",
+      "Extend a line rather than clip it short, the way a monospace face does.",
+      "Cut a slash flat through a shape. Never imply depth or a shadow.",
+      "Every icon must still read when it is reduced to a filled silhouette.",
+      "Detail is a budget, not a bonus. If it disappears at 16px, it should not be drawn."
+    ]
+  },
+
+  "grammar": {
+    "angles": [0, 45, 90, 135],
+    "angleTolerance": 1,
+    "closedShapes": true,
+    "diagonal": "up-right",
+    "badge": { "ratio": 0.35, "corner": "top-right" },
+    "silhouette": true
+  },
+
+  "canvas": 16,
+  "grid": 0.5,
+  "safeArea": 1,
+  "stroke": { "width": 1.25, "cap": "round", "join": "round" },
+  "cornerRadius": 1.5,
+  "minNegativeSpace": 1.5,
+  "limits": { "maxElements": 3, "maxShapes": 10 },
+
+  "style": { "default": "outline", "allowed": ["outline", "filled"] },
+  "colors": { "allowed": ["currentColor"] },
+  "detail": "low",
+
+  "sizes": [
+    {
+      "canvas": 24,
+      "grid": 0.5,
+      "safeArea": 1.5,
+      "stroke": { "width": 1.5 },
+      "cornerRadius": 2,
+      "minNegativeSpace": 2,
+      "limits": { "maxElements": 4, "maxShapes": 16 }
+    }
+  ]
+}

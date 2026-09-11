@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lucideInspired, parseIconLanguage } from "@icon-foundry/icon-language";
+import { lucideInspired, parseIconLanguage, technical } from "@icon-foundry/icon-language";
 import { parseIconSpec } from "@icon-foundry/icon-spec";
 import { validateIconSpec } from "./index.js";
 
@@ -130,5 +130,47 @@ describe("validateIconSpec", () => {
     const outlineOnly = parseIconLanguage({ ...lucideInspired, sizes: undefined, style: { default: "outline", allowed: ["outline"] } });
     const result = validateIconSpec(spec([{ primitive: "circle", x: 2, y: 2, size: 20 }], { style: "filled" }), outlineOnly);
     expect(rules(result)).toContain("style");
+  });
+});
+
+describe("construction rule", () => {
+  const tech = (elements: unknown[], canvas = 16) =>
+    parseIconSpec({ name: "t", language: "technical", canvas, elements });
+
+  it("passes the built-in vocabulary, which is drawn to the grammar", () => {
+    for (const name of ["document", "vehicle", "check", "clock", "arrow", "x", "device"]) {
+      const result = validateIconSpec(tech([{ primitive: name, x: 2, y: 2, size: 12 }]), technical);
+      expect(rules(result)).not.toContain("construction");
+    }
+  });
+
+  it("flags freeform geometry that leaves the language's angles", () => {
+    const result = validateIconSpec(tech([{ path: "M0 0 L12 6 L12 0 Z", x: 2, y: 2, size: 12 }]), technical);
+    expect(result.valid).toBe(true); // a warning, not an error
+    expect(result.issues.find((i) => i.rule === "construction")?.message).toMatch(/26\.6°.*0°, 45°, 90°, 135°/);
+  });
+
+  it("accepts freeform geometry drawn on 45° increments", () => {
+    const result = validateIconSpec(tech([{ path: "M0 0 L12 0 L12 12 L6 6 Z", x: 2, y: 2, size: 12 }]), technical);
+    expect(rules(result)).not.toContain("construction");
+  });
+
+  it("flags a rotation that pushes conforming geometry off the grammar", () => {
+    expect(rules(validateIconSpec(tech([{ primitive: "arrow", x: 2, y: 2, size: 12, rotate: 90 }]), technical))).not.toContain("construction");
+    expect(rules(validateIconSpec(tech([{ primitive: "arrow", x: 2, y: 2, size: 12, rotate: 30 }]), technical))).toContain("construction");
+  });
+
+  it("respects primitives whose concept demands other angles", () => {
+    for (const name of ["triangle", "warehouse", "package", "warning", "snowflake"]) {
+      expect(rules(validateIconSpec(tech([{ primitive: name, x: 2, y: 2, size: 12 }]), technical))).not.toContain("construction");
+    }
+  });
+
+  it("does nothing for a language that states no angles", () => {
+    const result = validateIconSpec(
+      parseIconSpec({ name: "t", language: "lucide-inspired", canvas: 24, elements: [{ path: "M0 0 L12 5", x: 2, y: 2, size: 20 }] }),
+      lucideInspired,
+    );
+    expect(rules(result)).not.toContain("construction");
   });
 });

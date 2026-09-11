@@ -4,57 +4,163 @@
   "title": "Icon Language",
   "description": "Versioned design rules that every icon in a set must follow. Top-level tokens describe the default optical size; `sizes` adds more.",
   "type": "object",
-  "required": ["id", "name", "version", "canvas", "grid", "safeArea", "stroke", "cornerRadius", "style"],
+  "required": [
+    "id",
+    "name",
+    "version",
+    "canvas",
+    "grid",
+    "safeArea",
+    "stroke",
+    "cornerRadius",
+    "style"
+  ],
   "additionalProperties": false,
   "properties": {
-    "$schema": { "type": "string" },
-    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-    "name": { "type": "string" },
-    "version": { "type": "string" },
-    "description": { "type": "string" },
-    "canvas": { "type": "number", "exclusiveMinimum": 0 },
-    "grid": { "type": "number", "exclusiveMinimum": 0, "description": "Layout grid for element boxes. Not a pixel-snapping rule." },
-    "safeArea": { "type": "number", "minimum": 0 },
-    "stroke": { "$ref": "#/$defs/stroke", "required": ["width", "cap", "join"] },
-    "cornerRadius": { "type": "number", "minimum": 0 },
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "canvas": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "grid": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Layout grid for element boxes. Not a pixel-snapping rule."
+    },
+    "safeArea": {
+      "type": "number",
+      "minimum": 0
+    },
+    "stroke": {
+      "$ref": "#/$defs/stroke",
+      "required": [
+        "width",
+        "cap",
+        "join"
+      ]
+    },
+    "cornerRadius": {
+      "type": "number",
+      "minimum": 0
+    },
     "style": {
       "type": "object",
-      "required": ["default"],
+      "required": [
+        "default"
+      ],
       "additionalProperties": false,
       "properties": {
-        "default": { "enum": ["outline", "filled"] },
-        "allowed": { "type": "array", "items": { "enum": ["outline", "filled"] }, "minItems": 1 }
+        "default": {
+          "enum": [
+            "outline",
+            "filled"
+          ]
+        },
+        "allowed": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "outline",
+              "filled"
+            ]
+          },
+          "minItems": 1
+        }
       }
     },
     "colors": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "allowed": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        "allowed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
       }
     },
-    "detail": { "enum": ["low", "medium", "high"] },
-    "limits": { "$ref": "#/$defs/limits" },
-    "minNegativeSpace": { "type": "number", "minimum": 0, "description": "Minimum visible gap between shapes of different elements. 0 disables." },
-    "optical": { "$ref": "#/$defs/optical" },
+    "detail": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "limits": {
+      "$ref": "#/$defs/limits"
+    },
+    "minNegativeSpace": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Minimum visible gap between shapes of different elements. 0 disables."
+    },
+    "optical": {
+      "$ref": "#/$defs/optical"
+    },
     "sizes": {
       "type": "array",
       "description": "Additional optical sizes. Unspecified fields inherit from the default size.",
       "items": {
         "type": "object",
-        "required": ["canvas"],
+        "required": [
+          "canvas"
+        ],
         "additionalProperties": false,
         "properties": {
-          "canvas": { "type": "number", "exclusiveMinimum": 0 },
-          "grid": { "type": "number", "exclusiveMinimum": 0 },
-          "safeArea": { "type": "number", "minimum": 0 },
-          "stroke": { "$ref": "#/$defs/stroke" },
-          "cornerRadius": { "type": "number", "minimum": 0 },
-          "limits": { "$ref": "#/$defs/limits" },
-          "minNegativeSpace": { "type": "number", "minimum": 0 },
-          "optical": { "$ref": "#/$defs/optical" }
+          "canvas": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "grid": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "safeArea": {
+            "type": "number",
+            "minimum": 0
+          },
+          "stroke": {
+            "$ref": "#/$defs/stroke"
+          },
+          "cornerRadius": {
+            "type": "number",
+            "minimum": 0
+          },
+          "limits": {
+            "$ref": "#/$defs/limits"
+          },
+          "minNegativeSpace": {
+            "type": "number",
+            "minimum": 0
+          },
+          "optical": {
+            "$ref": "#/$defs/optical"
+          }
         }
       }
+    },
+    "character": {
+      "$ref": "#/$defs/character"
+    },
+    "grammar": {
+      "$ref": "#/$defs/grammar"
     }
   },
   "$defs": {
@@ -62,28 +168,66 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "width": { "type": "number", "exclusiveMinimum": 0 },
-        "cap": { "enum": ["butt", "round", "square"] },
-        "join": { "enum": ["miter", "round", "bevel"] }
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "cap": {
+          "enum": [
+            "butt",
+            "round",
+            "square"
+          ]
+        },
+        "join": {
+          "enum": [
+            "miter",
+            "round",
+            "bevel"
+          ]
+        }
       }
     },
     "limits": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "maxElements": { "type": "integer", "minimum": 1 },
-        "maxShapes": { "type": "integer", "minimum": 1 }
+        "maxElements": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxShapes": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "box": {
       "type": "object",
-      "required": ["x", "y", "width", "height"],
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
       "additionalProperties": false,
       "properties": {
-        "x": { "type": "number", "minimum": 0 },
-        "y": { "type": "number", "minimum": 0 },
-        "width": { "type": "number", "exclusiveMinimum": 0 },
-        "height": { "type": "number", "exclusiveMinimum": 0 }
+        "x": {
+          "type": "number",
+          "minimum": 0
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
       }
     },
     "optical": {
@@ -91,10 +235,137 @@
       "description": "Keyline boxes per optical shape. Defaults derive from canvas and safe area.",
       "additionalProperties": false,
       "properties": {
-        "square": { "$ref": "#/$defs/box" },
-        "circle": { "$ref": "#/$defs/box" },
-        "horizontal": { "$ref": "#/$defs/box" },
-        "vertical": { "$ref": "#/$defs/box" }
+        "square": {
+          "$ref": "#/$defs/box"
+        },
+        "circle": {
+          "$ref": "#/$defs/box"
+        },
+        "horizontal": {
+          "$ref": "#/$defs/box"
+        },
+        "vertical": {
+          "$ref": "#/$defs/box"
+        }
+      }
+    },
+    "character": {
+      "type": "object",
+      "description": "Why the icons look the way they do. Consumed by the studio, the docs and any drafting agent.",
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "type": "string"
+        },
+        "axes": {
+          "type": "object",
+          "description": "0\u2013100 between named poles: geometric (organic\u2192geometric), minimal (expressive\u2192minimal), technical (friendly\u2192technical), literal (abstract\u2192literal).",
+          "additionalProperties": false,
+          "properties": {
+            "geometric": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "minimal": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "technical": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "literal": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
+        },
+        "metaphors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "use": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "avoid": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "vocabulary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "principles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "grammar": {
+      "type": "object",
+      "description": "How icons are constructed. Checkable by the validator and followed by layout recipes.",
+      "additionalProperties": false,
+      "properties": {
+        "angles": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMaximum": 180
+          },
+          "description": "Allowed straight-line angles, measured 0\u2013180. Empty means any angle."
+        },
+        "angleTolerance": {
+          "type": "number",
+          "minimum": 0
+        },
+        "closedShapes": {
+          "type": "boolean"
+        },
+        "diagonal": {
+          "enum": [
+            "up-right",
+            "up-left",
+            "none"
+          ]
+        },
+        "badge": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ratio": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 1
+            },
+            "corner": {
+              "enum": [
+                "top-right",
+                "top-left",
+                "bottom-right",
+                "bottom-left"
+              ]
+            }
+          }
+        },
+        "silhouette": {
+          "type": "boolean"
+        }
       }
     }
   }

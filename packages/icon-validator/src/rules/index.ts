@@ -1,6 +1,6 @@
 import { composedBounds, topLevelIndex } from "@icon-foundry/icon-composer";
 import { hasSize } from "@icon-foundry/icon-language";
-import { isFiniteShape, shapeDistance } from "@icon-foundry/icon-primitives";
+import { isFiniteShape, offGrammarAngles, shapeDistance } from "@icon-foundry/icon-primitives";
 import { elementBox, type IconElement } from "@icon-foundry/icon-spec";
 import { defineRule, type ValidationIssue, type ValidationRule } from "../types.js";
 
@@ -286,6 +286,36 @@ export const negativeSpaceRule = defineRule({
   },
 });
 
+/**
+ * Construction: straight lines must run at one of the language's angles.
+ * Primitives whose concept demands other angles (a triangle, an isometric
+ * box) opt out once in the vocabulary, so this rule polices what actually
+ * drifts: freeform geometry and odd rotations.
+ */
+export const constructionRule = defineRule({
+  id: "construction",
+  label: "Construction",
+  check: ({ language, composed }) => {
+    const { angles, angleTolerance } = language.grammar;
+    if (!composed || angles.length === 0) return [];
+    const worst = new Map<string, number[]>();
+    for (const item of composed.shapes) {
+      if (item.freeAngles) continue;
+      const off = offGrammarAngles(item.shape, angles, angleTolerance);
+      if (off.length === 0) continue;
+      const seen = worst.get(item.source) ?? [];
+      for (const a of off) if (!seen.some((x) => Math.abs(x - a) < 0.5)) seen.push(a);
+      worst.set(item.source, seen);
+    }
+    return [...worst.entries()].map(([source, off]) => ({
+      severity: "warning" as const,
+      rule: "construction",
+      message: `Lines at ${off.map((a) => `${a.toFixed(1)}°`).join(", ")} do not follow the language's construction angles (${angles.map((a) => `${a}°`).join(", ")}).`,
+      source,
+    }));
+  },
+});
+
 export const builtInRules: readonly ValidationRule[] = [
   canvasRule,
   styleRule,
@@ -298,4 +328,5 @@ export const builtInRules: readonly ValidationRule[] = [
   complexityRule,
   gridRule,
   negativeSpaceRule,
+  constructionRule,
 ];

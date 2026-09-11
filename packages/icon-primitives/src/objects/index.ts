@@ -31,6 +31,7 @@ export const buildingPrimitive = definePrimitive({
 
 export const warehousePrimitive = definePrimitive({
   name: "warehouse",
+  freeAngles: true,
   category: "object",
   opticalShape: "horizontal",
   description: "A wide building with a pitched roof and a bay door.",
@@ -45,6 +46,7 @@ export const warehousePrimitive = definePrimitive({
 
 export const packagePrimitive = definePrimitive({
   name: "package",
+  freeAngles: true,
   category: "object",
   opticalShape: "square",
   description: "An isometric box.",

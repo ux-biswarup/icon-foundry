@@ -114,6 +114,28 @@ Three observations for our Character layer:
 9. **Treat the set, not the icon, as the unit of audit.** Many of Cursor's
    consistency checks only make sense across the whole set.
 
+## 4b. What has landed since (2026-09-12)
+
+The `technical` language in `languages/technical/` is this note turned into a
+shipped default, and the language schema grew the layers it needed:
+
+- Two optical sizes, 16px primary at 1.25 stroke and 24px at 1.5.
+- A layout grid of 0.5 that is explicitly not a pixel-snapping rule.
+- `minNegativeSpace` of 1.5 at 16px, which is exactly the "never less than
+  three grid units" rule, and 2 at 24px.
+- Four keyline boxes per size, with every primitive declaring its optical shape.
+- A `grammar` block: 45° construction with a tolerance, closed shapes,
+  diagonal direction, badge corner and ratio, silhouette requirement.
+- A `character` block carrying the principles above in the team's words,
+  which the drafting agent receives verbatim instead of a hard-coded prompt.
+- A `construction` validator rule, with `freeAngles` as the reviewed
+  exception for shapes whose concept demands other angles (triangle,
+  warehouse, package, warning, snowflake). `check` and `clock` were redrawn
+  to conform rather than exempted.
+
+Still open from this note: optical breaks and stroke thinning at junctions,
+dot roles, interior cut-outs for the filled style, and set-level audit.
+
 ## 5. What this says about generation
 
 Cursor, an AI company, hired a human to hand-draw every icon, "for those

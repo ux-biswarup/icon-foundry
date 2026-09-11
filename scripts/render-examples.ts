@@ -26,10 +26,11 @@ const registry = defaultRegistry.extend(
     .map((f) => definePathPrimitive(JSON.parse(readFileSync(join(elementsDir, f), "utf8")))),
 );
 
-const files = [
-  ...readdirSync(root).filter((f) => f.endsWith(".json")).map((f) => join(root, f)),
-  ...readdirSync(join(root, "invalid")).filter((f) => f.endsWith(".json")).map((f) => join(root, "invalid", f)),
-];
+const files = ["", "technical", "invalid"].flatMap((sub) =>
+  readdirSync(join(root, sub))
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => join(root, sub, f)),
+);
 
 const cards: string[] = [];
 let failures = 0;

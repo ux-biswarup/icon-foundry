@@ -16,6 +16,8 @@ export interface PathPrimitiveDefinition {
   box?: { width: number; height: number };
   opticalShape?: OpticalShape;
   keywords?: string[];
+  /** Set when the concept demands angles outside the language grammar. */
+  freeAngles?: boolean;
   origin?: "approved" | "draft";
   /** Path data for the outline style. Closed paths are fillable by default. */
   outline: string[];
@@ -102,6 +104,7 @@ export function definePathPrimitive(input: unknown): Primitive {
     box,
     opticalShape,
     keywords,
+    ...(def.freeAngles === true && { freeAngles: true }),
     origin: def.origin === "approved" ? "approved" : "draft",
     build: (ctx) => (ctx.style === "filled" ? filled : outline),
   };

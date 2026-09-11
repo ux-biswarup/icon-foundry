@@ -158,6 +158,17 @@ ul.checks.compact { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .keylines .vertical { stroke: #f0ad4e; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
+.purpose { margin: 0 0 14px; max-width: 46ch; font-size: 15px; }
+.principles { margin: 0; padding-left: 18px; display: grid; gap: 6px; max-width: 60ch; }
+.principles li { font-size: 13px; }
+.metaphors { margin-top: 12px; }
+.axes { display: grid; gap: 8px; max-width: 380px; }
+.axis { display: grid; grid-template-columns: 74px 1fr 74px; align-items: center; gap: 8px; font-size: 11px; color: var(--fg-2); }
+.axis .pole { text-align: right; }
+.axis .pole.high { text-align: left; }
+.axis .track { position: relative; height: 3px; background: var(--bg-3); border-radius: 2px; }
+.axis .dot { position: absolute; top: -3px; width: 9px; height: 9px; margin-left: -4px; border-radius: 50%; background: var(--fg); }
+
 /* Elements */
 .element-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .element { display: grid; gap: 4px; padding: 10px; border-radius: var(--radius); border: 1px solid transparent; }

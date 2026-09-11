@@ -1,0 +1,28 @@
+{
+  "name": "vehicle-clock-16",
+  "language": "technical",
+  "canvas": 16,
+  "meta": {
+    "description": "Scheduled delivery"
+  },
+  "elements": [
+    {
+      "primitive": "vehicle",
+      "x": 1,
+      "y": 6,
+      "width": 11,
+      "height": 7,
+      "align": {
+        "x": "start",
+        "y": "end"
+      }
+    },
+    {
+      "primitive": "clock",
+      "x": 10,
+      "y": 1,
+      "width": 5,
+      "height": 5
+    }
+  ]
+}

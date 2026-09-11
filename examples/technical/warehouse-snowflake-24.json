@@ -1,0 +1,28 @@
+{
+  "name": "warehouse-snowflake-24",
+  "language": "technical",
+  "canvas": 24,
+  "meta": {
+    "description": "The same concept at 24px: heavier stroke, more room"
+  },
+  "elements": [
+    {
+      "primitive": "warehouse",
+      "x": 1.5,
+      "y": 8,
+      "width": 16.5,
+      "height": 12.5,
+      "align": {
+        "x": "start",
+        "y": "end"
+      }
+    },
+    {
+      "primitive": "snowflake",
+      "x": 15,
+      "y": 1.5,
+      "width": 7.5,
+      "height": 7.5
+    }
+  ]
+}

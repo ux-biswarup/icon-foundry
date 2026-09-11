@@ -33,6 +33,7 @@ export const roundedRectanglePrimitive = definePrimitive({
 
 export const trianglePrimitive = definePrimitive({
   name: "triangle",
+  freeAngles: true,
   category: "shape",
   opticalShape: "square",
   description: "An upward-pointing triangle.",

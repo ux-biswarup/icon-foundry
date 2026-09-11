@@ -628,3 +628,99 @@ export function shapeDistance(a: Shape, b: Shape): number {
 export function shapesIntersect(a: Shape, b: Shape): boolean {
   return shapeDistance(a, b) === 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* Construction angles                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Segments shorter than this are treated as dots, not lines. */
+const MIN_SEGMENT = 0.05;
+
+function angleOf(x1: number, y1: number, x2: number, y2: number): number | undefined {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (Math.hypot(dx, dy) < MIN_SEGMENT) return undefined;
+  let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  deg = ((deg % 180) + 180) % 180; // a line has no direction
+  return deg > 180 - 1e-9 ? 0 : deg;
+}
+
+/**
+ * Angles of every straight segment in a shape, measured 0–180 from the x axis.
+ * Curves (arcs and cubics) carry no construction angle and are skipped, as are
+ * dot-length segments.
+ */
+export function segmentAngles(shape: Shape): number[] {
+  const out: number[] = [];
+  const push = (x1: number, y1: number, x2: number, y2: number) => {
+    const a = angleOf(x1, y1, x2, y2);
+    if (a !== undefined) out.push(a);
+  };
+  switch (shape.kind) {
+    case "circle":
+      break;
+    case "rect":
+      // Rects are axis-aligned by construction; rotation converts them to paths.
+      if (shape.width >= MIN_SEGMENT) out.push(0);
+      if (shape.height >= MIN_SEGMENT) out.push(90);
+      break;
+    case "line":
+      push(shape.x1, shape.y1, shape.x2, shape.y2);
+      break;
+    case "polyline": {
+      const pts = shape.points;
+      for (let i = 0; i < pts.length - 1; i++) push(pts[i]![0], pts[i]![1], pts[i + 1]![0], pts[i + 1]![1]);
+      if (shape.closed && pts.length > 2) {
+        const a = pts[pts.length - 1]!;
+        const b = pts[0]!;
+        push(a[0], a[1], b[0], b[1]);
+      }
+      break;
+    }
+    case "path": {
+      let cx = 0;
+      let cy = 0;
+      let startX = 0;
+      let startY = 0;
+      for (const cmd of shape.commands) {
+        switch (cmd.c) {
+          case "M":
+            startX = cx = cmd.x;
+            startY = cy = cmd.y;
+            break;
+          case "L":
+            push(cx, cy, cmd.x, cmd.y);
+            cx = cmd.x;
+            cy = cmd.y;
+            break;
+          case "A":
+          case "C":
+            cx = cmd.x;
+            cy = cmd.y;
+            break;
+          case "Z":
+            push(cx, cy, startX, startY);
+            cx = startX;
+            cy = startY;
+            break;
+        }
+      }
+      break;
+    }
+  }
+  return out;
+}
+
+/** Angles in the shape that no allowed angle matches within `tolerance`. */
+export function offGrammarAngles(shape: Shape, allowed: readonly number[], tolerance: number): number[] {
+  if (allowed.length === 0) return [];
+  const off: number[] = [];
+  for (const angle of segmentAngles(shape)) {
+    const fits = allowed.some((a) => {
+      const d = Math.abs(((angle - a + 90) % 180) - 90);
+      return d <= tolerance + 1e-9;
+    });
+    if (!fits && !off.some((o) => Math.abs(o - angle) < 0.5)) off.push(angle);
+  }
+  return off;
+}

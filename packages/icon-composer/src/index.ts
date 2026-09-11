@@ -47,6 +47,8 @@ export interface ComposedShape {
   color: string;
   /** Name of the primitive that produced the shape, or "path" for freeform geometry. */
   primitive: string;
+  /** The source primitive opted out of the language's construction angles. */
+  freeAngles: boolean;
   /** JSON-pointer-like path to the source element, e.g. `elements[1].children[0]`. */
   source: string;
 }
@@ -191,7 +193,7 @@ function composeElement(
     const { shapes, box: natural } = pathElementGeometry(el, source);
     const m = placementMatrix(el, natural);
     for (const shape of shapes) {
-      out.push({ shape: transformShape(shape, m), style, stroke, color, primitive: "path", source });
+      out.push({ shape: transformShape(shape, m), style, stroke, color, primitive: "path", freeAngles: false, source });
     }
     return 1;
   }
@@ -210,7 +212,15 @@ function composeElement(
   });
   const m = placementMatrix(el, primitive.box);
   for (const shape of shapes) {
-    out.push({ shape: transformShape(shape, m), style, stroke, color, primitive: primitive.name, source });
+    out.push({
+      shape: transformShape(shape, m),
+      style,
+      stroke,
+      color,
+      primitive: primitive.name,
+      freeAngles: primitive.freeAngles === true,
+      source,
+    });
   }
   return 1;
 }

@@ -1,12 +1,12 @@
 # Current capabilities
 
-Status as of 2026-09-12 (updated after the web studio's first slice). This document describes what the
+Status as of 2026-09-12 (updated after the Technical language landed). This document describes what the
 system does today, not what it is planned to do. It is the baseline for the
 discussion about free-form icon generation.
 
 ## In one paragraph
 
-Icon Foundry today is a **deterministic icon compiler with a fixed
+Icon Foundry today is a **deterministic icon compiler with a growing
 vocabulary**. A designer types a description, the system matches words in it to
 one of 23 hand-drawn primitives, arranges them with one of two layout recipes,
 renders SVG using the tokens of an Icon Language, validates the result against
@@ -111,6 +111,7 @@ of these, and a developer can author one by hand.
 | color | error | A colour not in the language allow-list. |
 | complexity | warning | More primitives or shapes than the language detail budget. |
 | grid | warning | Top-level boxes not on the language layout grid. |
+| construction | warning | Straight lines that leave the language's allowed angles, unless the element declares `freeAngles`. |
 | negativeSpace | warning | Visible gap between different elements below `minNegativeSpace`, unless they cross deliberately. |
 | compose | error | Unknown primitive; reported instead of thrown. |
 
@@ -119,7 +120,15 @@ construction angles.
 
 ## What the Icon Language controls
 
-Per optical size (the starter language ships 24px and 16px): canvas, layout
+**Character** (data, not documentation): purpose, four personality axes,
+metaphors used and refused, product vocabulary, and the principles in the
+team's own words. The agent's prompt is assembled from these.
+
+**Grammar**: allowed line angles and tolerance, closed-over-open preference,
+canonical diagonal direction, badge corner and ratio, silhouette requirement.
+Recipes follow it; the construction rule checks it.
+
+**Tokens**, per optical size (the starter language ships 24px and 16px): canvas, layout
 grid, safe area, stroke width, cap, join, corner radius, element and shape
 budgets, minimum negative space, and four keyline boxes (square, circle,
 horizontal, vertical). Per language: default and allowed styles, allowed
@@ -151,8 +160,8 @@ primitives.
 2. **Filled style loses detail.** No cut-out support, so a filled warning has no exclamation mark and a filled warehouse has no door.
 3. **Two layout recipes only.** No side-by-side, stacked, or contained arrangements.
 4. **No Figma bridge yet.** The plugin still authors on its own; it does not read a library folder or sync components.
-5. **One language.** The starter language is the only one shipped.
-6. **No construction rules.** Angles, closed-over-open, and rounding policy are not yet checked.
+5. **Two languages shipped.** `technical` (the default: 16px primary, 1.25 stroke, 45° construction) and `lucide-inspired` (24px, 2px stroke, no grammar).
+6. **Closed-over-open and diagonal direction are not machine-checked**, only stated and given to the agent.
 
 ## Boundary the current design draws
 

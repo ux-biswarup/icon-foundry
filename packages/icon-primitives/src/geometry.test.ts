@@ -3,8 +3,10 @@ import {
   chain,
   circle,
   line,
+  offGrammarAngles,
   p,
   rect,
+  segmentAngles,
   rotate,
   scale,
   shapeBounds,
@@ -56,5 +58,37 @@ describe("shapeBounds", () => {
     close(b.maxY, 12);
     close(b.minX, 0);
     close(b.maxX, 24);
+  });
+});
+
+describe("segmentAngles and offGrammarAngles", () => {
+  const t = (shape: Parameters<typeof segmentAngles>[0]) => segmentAngles(shape).map((a) => Number(a.toFixed(1)));
+
+  it("measures straight segments 0–180 and ignores direction", () => {
+    expect(t(line(0, 0, 10, 0))).toEqual([0]);
+    expect(t(line(10, 0, 0, 0))).toEqual([0]);
+    expect(t(line(0, 0, 0, 10))).toEqual([90]);
+    expect(t(line(0, 0, 10, 10))).toEqual([45]);
+    expect(t(line(10, 0, 0, 10))).toEqual([135]);
+  });
+
+  it("skips curves and dot-length segments", () => {
+    expect(t(circle(5, 5, 5))).toEqual([]);
+    expect(t(p().M(0, 12).A(12, 12, 0, false, true, 24, 12).build(false))).toEqual([]);
+    expect(t(line(5, 5, 5, 5.01))).toEqual([]);
+  });
+
+  it("walks polylines, closures and rect edges", () => {
+    expect(t({ kind: "polyline", points: [[0, 0], [10, 0], [10, 10]], closed: true, fillable: true })).toEqual([0, 90, 45]);
+    expect(t(rect(0, 0, 4, 4, 0)).sort()).toEqual([0, 90]);
+  });
+
+  it("flags only the angles no allowed angle matches", () => {
+    const allowed = [0, 45, 90, 135];
+    expect(offGrammarAngles(line(0, 0, 10, 10), allowed, 1)).toEqual([]);
+    expect(offGrammarAngles(line(0, 0, 12, 6), allowed, 1).map((a) => Math.round(a))).toEqual([27]);
+    // A wide tolerance forgives it; an empty allow-list checks nothing.
+    expect(offGrammarAngles(line(0, 0, 12, 6), allowed, 20)).toEqual([]);
+    expect(offGrammarAngles(line(0, 0, 12, 6), [], 1)).toEqual([]);
   });
 });

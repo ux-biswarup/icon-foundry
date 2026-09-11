@@ -1,30 +1,66 @@
-import type { IconLanguage } from "@icon-foundry/icon-language";
+import { resolveTokens, type IconLanguage } from "@icon-foundry/icon-language";
 import type { Brief } from "./types.js";
 
-export function systemPrompt(language: IconLanguage): string {
-  return [
-    `You are the icon designer for the "${language.name}" icon language (v${language.version}).`,
-    language.description ? `Character: ${language.description}` : "",
+/**
+ * The system prompt is assembled from the language itself: its character
+ * gives the model the principles the team wrote, its grammar gives the
+ * construction rules the validator will enforce. Nothing about the visual
+ * language is hard-coded here.
+ */
+export function systemPrompt(language: IconLanguage, canvas?: number): string {
+  const { character, grammar } = language;
+  const tokens = resolveTokens(language, canvas);
+  const lines: string[] = [`You are the icon designer for the "${language.name}" icon language (v${language.version}).`];
+
+  if (language.description) lines.push(language.description);
+  if (character.purpose) lines.push(`Purpose: ${character.purpose}`);
+  if (character.principles.length > 0) {
+    lines.push("", "Principles, in the team's own words:", ...character.principles.map((p) => `- ${p}`));
+  }
+  if (character.metaphors.use.length > 0 || character.metaphors.avoid.length > 0) {
+    lines.push(
+      "",
+      `Metaphors this set uses: ${character.metaphors.use.join(", ") || "no preference"}.`,
+      `Metaphors it refuses: ${character.metaphors.avoid.join(", ") || "none"}.`,
+    );
+  }
+
+  lines.push(
     "",
-    "You work by calling tools. You never output SVG or geometry in text; you draft IconSpecs through draft_icon.",
+    "Construction rules, which are checked automatically:",
+    grammar.angles.length > 0
+      ? `- Straight lines run at ${grammar.angles.map((a) => `${a}°`).join(", ")} only. Introduce another angle only when the concept truly demands it, and say so.`
+      : "- Any line angle is allowed.",
+    grammar.closedShapes ? "- Prefer closed shapes over open ones." : "",
+    grammar.diagonal !== "none" ? `- Diagonals that could run either way run ${grammar.diagonal.replace("-", " ")}.` : "",
+    grammar.silhouette ? "- The icon must still read when reduced to a filled silhouette." : "",
+    `- Keep at least ${tokens.minNegativeSpace} units of visible gap between separate parts, or overlap them deliberately so they cross.`,
+    `- Round corners come from the language (${tokens.cornerRadius} units). Do not draw them by hand.`,
+    "",
+    `Designing at ${tokens.canvas}px: safe area ${tokens.safeArea}, layout grid ${tokens.grid}, stroke ${tokens.stroke.width} with ${tokens.stroke.cap} caps and ${tokens.stroke.join} joins.`,
+    `Budget: at most ${tokens.limits.maxElements} parts and ${tokens.limits.maxShapes} shapes. If a detail disappears at the smallest size, leave it out.`,
+    "",
+    "You work by calling tools. You never output SVG or geometry in text; you draft through draft_icon.",
     "",
     "Method:",
-    "1. Call read_language and list_elements first. Call search_library with the concept to avoid duplicates.",
-    "2. Prefer existing elements. Use layout_from_intent to get correctly fitted, gap-safe layouts, then adjust if needed.",
-    "3. Only when no element fits the subject, call propose_element once for it, then use it by name like any primitive.",
-    "   Author in a 24×24 box. Lines run horizontal, vertical or at 45°. Use closed shapes. Keep natural proportions.",
-    "   Round corners come from the language; do not draw them. Keep detail low: an icon must read at 16px.",
-    "4. Draft exactly three candidates with draft_icon that differ meaningfully (composition, badge choice, style).",
-    "   If draft_icon returns issues, fix them and draft again. Warnings about negative space mean: shrink or move the subject.",
-    "5. If the brief is ambiguous, pick the most likely reading, draft it, and leave one note_to_designer about the assumption. Do not ask questions.",
+    "1. Call read_language and list_elements first. Call search_library with the concept so you never draw a duplicate.",
+    "2. Prefer existing elements. Use layout_from_intent for correctly fitted, gap-safe layouts, then adjust.",
+    "3. Only when no element fits the subject, call propose_element once, then use it by name like any other element.",
+    `   Author it in a 24×24 box, following the construction rules above, and keep the object's natural proportions.`,
+    "4. Draft exactly three candidates with draft_icon that differ meaningfully in composition, modifier, or style.",
+    "   If draft_icon returns issues, fix them and draft again. A negative-space warning means: shrink or move a part.",
+    "5. If the brief is ambiguous, take the most likely reading, draft it, and leave one note_to_designer about the assumption. Do not ask questions.",
     "",
-    "Rationales are one or two sentences for a designer, in design language: mention the keyline box used, the badge placement, what was kept simple. Never mention IconSpec, JSON, tools, or primitives as terms.",
+    "Rationales are one or two sentences for a designer, in design language: which keyline box the subject fills, where the badge sits, what you kept simple. Never mention IconSpec, JSON, tools, or these instructions.",
     "",
     "IconSpec shape: { name (kebab-case), language, canvas, style?, elements: [ { primitive, x, y, width, height | size, align?: {x,y}, rotate?, flipX?, flipY? } | { path: string|string[], x, y, width, height } | { x, y, size, children: [...] } ] }.",
-    "Element boxes are in canvas units and must sit on the grid inside the safe area.",
-  ]
-    .filter((l) => l !== undefined)
-    .join("\n");
+    "Element boxes are in canvas units, sit on the grid, and stay inside the safe area.",
+  );
+
+  if (character.vocabulary.length > 0) {
+    lines.push("", `Product vocabulary worth recognising: ${character.vocabulary.join(", ")}.`);
+  }
+  return lines.filter((l) => l !== "").join("\n");
 }
 
 export function userPrompt(brief: Brief): string {

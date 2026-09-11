@@ -29,9 +29,9 @@ export const checkPrimitive = definePrimitive({
   category: "symbol",
   opticalShape: "horizontal",
   description: "A check mark.",
-  box: { width: 24, height: 18 },
+  box: { width: 24, height: 17 },
   keywords: ["check", "done", "complete", "approved", "confirmed", "success", "ok", "verified"],
-  build: () => [polyline([[0, 10], [8, 18], [24, 0]], false, false)],
+  build: () => [polyline([[0, 10], [7, 17], [24, 0]], false, false)],
 });
 
 export const xPrimitive = definePrimitive({
@@ -46,6 +46,7 @@ export const xPrimitive = definePrimitive({
 
 export const warningPrimitive = definePrimitive({
   name: "warning",
+  freeAngles: true,
   category: "symbol",
   opticalShape: "square",
   description: "A triangle with an exclamation mark.",
@@ -60,6 +61,7 @@ export const warningPrimitive = definePrimitive({
 
 export const snowflakePrimitive = definePrimitive({
   name: "snowflake",
+  freeAngles: true,
   category: "symbol",
   opticalShape: "circle",
   description: "A six-armed snowflake.",
@@ -122,7 +124,7 @@ export const clockPrimitive = definePrimitive({
   build: (ctx) => {
     const face = circle(12, 12, 12);
     if (ctx.style === "filled") return [face];
-    return [face, polyline([[12, 6], [12, 12], [16, 14]], false, false)];
+    return [face, polyline([[12, 6], [12, 12], [16, 16]], false, false)];
   },
 });
 

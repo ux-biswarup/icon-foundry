@@ -121,6 +121,40 @@ filled areas). Shapes that cross are treated as a deliberate overlap and
 skipped. Recipes shrink the subject in grid steps until the rule passes, so
 generated icons never merge into a blur at small sizes.
 
+### A language carries character and grammar, not only tokens
+
+Tokens alone cannot make a set cohere: two languages with identical stroke and
+canvas can still look nothing alike. An `IconLanguage` therefore has three
+layers.
+
+- **Character** — purpose, four personality axes, the metaphors the set uses
+  and refuses, and the principles in the team's own words. It is data, not
+  documentation: the agent's system prompt is assembled from it, and the
+  studio shows it beside the icons.
+- **Grammar** — how icons are *constructed*: allowed line angles and
+  tolerance, closed shapes over open, the canonical diagonal direction, badge
+  corner and ratio, and whether every icon must read as a silhouette. Layout
+  recipes follow it and the validator checks it.
+- **Tokens** — the per-optical-size numbers described above.
+
+Both new layers default to permissive, so a language that states neither
+behaves exactly as before. `lucide-inspired` does; `technical` states both.
+
+### Construction is checked where drift actually happens
+
+The `construction` rule measures the angle of every straight segment in the
+composed geometry and warns when one leaves the grammar. Curves carry no
+construction angle and are skipped, as are dot-length segments. Because the
+check runs *after* composition, it also catches a rotation that pushes
+conforming geometry off the grammar.
+
+A primitive whose concept genuinely demands other angles declares
+`freeAngles` once in the vocabulary, where a human reviews it: a triangle, an
+isometric box, a snowflake's 60° symmetry. Everything else is policed, which
+aims the rule at freeform paths and new elements, exactly where a set drifts.
+This is Cursor's "angles introduced only when the concept demands" made
+mechanical.
+
 ### Freeform geometry stays inside the language
 
 A `path` element carries SVG path data (M, L, H, V, C, A, Z) authored in a
@@ -153,7 +187,9 @@ packages are imported.
 ## Known limitations
 
 - Filled icons have no interior cut-outs.
-- No construction-policy rules yet (allowed angles, closed over open).
+- `closedShapes` and `diagonal` are carried in the grammar and given to the
+  agent, but not machine-checked: a mechanical rule for either would produce
+  more noise than signal.
 - Layout recipes are deliberately simple (single subject, one or two badges).
 - The Figma plugin creates local components; team-library publishing is a
   manual step in Figma.

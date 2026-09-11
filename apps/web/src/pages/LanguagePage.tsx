@@ -1,4 +1,4 @@
-import type { SizeTokens } from "@icon-foundry/icon-language";
+import type { IconCharacter, SizeTokens } from "@icon-foundry/icon-language";
 import { useLibrary } from "../store/LibraryContext.js";
 
 /** Read-only view of the language until the setup board lands. */
@@ -15,6 +15,54 @@ export function LanguagePage() {
         </h1>
         {lang.description && <p className="lede">{lang.description}</p>}
       </header>
+
+      {(lang.character.purpose || lang.character.principles.length > 0) && (
+        <section className="two-col">
+          <div>
+            <h2>Character</h2>
+            {lang.character.purpose && <p className="purpose">{lang.character.purpose}</p>}
+            <Axes character={lang.character} />
+          </div>
+          <div>
+            <h2>Principles</h2>
+            <ul className="principles">
+              {lang.character.principles.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+            {(lang.character.metaphors.use.length > 0 || lang.character.metaphors.avoid.length > 0) && (
+              <dl className="meta metaphors">
+                <dt>Uses</dt>
+                <dd>{lang.character.metaphors.use.join(", ") || "no preference"}</dd>
+                <dt>Refuses</dt>
+                <dd>{lang.character.metaphors.avoid.join(", ") || "nothing"}</dd>
+              </dl>
+            )}
+          </div>
+        </section>
+      )}
+
+      <section>
+        <h2>Construction</h2>
+        <dl className="meta">
+          <dt>Line angles</dt>
+          <dd>
+            {lang.grammar.angles.length > 0
+              ? `${lang.grammar.angles.map((a) => `${a}°`).join(", ")} (±${lang.grammar.angleTolerance}°), unless the concept demands otherwise`
+              : "any angle"}
+          </dd>
+          <dt>Shapes</dt>
+          <dd>{lang.grammar.closedShapes ? "closed over open" : "open shapes allowed"}</dd>
+          <dt>Diagonals</dt>
+          <dd>{lang.grammar.diagonal === "none" ? "either direction" : `run ${lang.grammar.diagonal.replace("-", " ")}`}</dd>
+          <dt>Badge</dt>
+          <dd>
+            {lang.grammar.badge.corner.replace("-", " ")}, {Math.round(lang.grammar.badge.ratio * 100)}% of the content box
+          </dd>
+          <dt>Silhouette</dt>
+          <dd>{lang.grammar.silhouette ? "every icon must read as a filled silhouette" : "not required"}</dd>
+        </dl>
+      </section>
 
       <section>
         <h2>Optical sizes</h2>
@@ -44,6 +92,29 @@ export function LanguagePage() {
           <pre>{JSON.stringify(lang, null, 2)}</pre>
         </details>
       </section>
+    </div>
+  );
+}
+
+const AXES: Array<[keyof IconCharacter["axes"], string, string]> = [
+  ["geometric", "organic", "geometric"],
+  ["minimal", "expressive", "minimal"],
+  ["technical", "friendly", "technical"],
+  ["literal", "abstract", "literal"],
+];
+
+function Axes({ character }: { character: IconCharacter }) {
+  return (
+    <div className="axes">
+      {AXES.map(([key, low, high]) => (
+        <div key={key} className="axis">
+          <span className="pole">{low}</span>
+          <span className="track">
+            <span className="dot" style={{ left: `${character.axes[key]}%` }} />
+          </span>
+          <span className="pole high">{high}</span>
+        </div>
+      ))}
     </div>
   );
 }

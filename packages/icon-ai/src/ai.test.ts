@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lucideInspired } from "@icon-foundry/icon-language";
+import { lucideInspired, parseIconLanguage, technical } from "@icon-foundry/icon-language";
 import { validateIconSpec } from "@icon-foundry/icon-validator";
 import { createKeywordIntentParser, createLlmIntentParser, intentToSpec, parseIntentKeywords } from "./index.js";
 
@@ -74,5 +74,39 @@ describe("createLlmIntentParser", () => {
       fallback: createKeywordIntentParser(),
     });
     expect(await parser.parse("delivery truck")).toMatchObject({ subject: "vehicle" });
+  });
+});
+
+describe("recipes follow the language grammar", () => {
+  it("places the badge in the corner the grammar names, and moves the subject away from it", () => {
+    const topRight = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "cold warehouse" }, technical);
+    const badge = topRight.elements[1]!;
+    expect(badge.y).toBe(technical.safeArea);
+    expect(badge.x).toBeGreaterThan(technical.canvas / 2);
+    expect(topRight.elements[0]!.align).toMatchObject({ x: "start", y: "end" });
+
+    const flipped = parseIconLanguage({ ...technical, sizes: undefined, grammar: { ...technical.grammar, badge: { ratio: 0.35, corner: "bottom-left" } } });
+    const bottomLeft = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "cold warehouse" }, flipped);
+    const badge2 = bottomLeft.elements[1]!;
+    expect(badge2.x).toBe(flipped.safeArea);
+    expect(badge2.y).toBeGreaterThan(flipped.canvas / 2);
+    expect(bottomLeft.elements[0]!.align).toMatchObject({ x: "end", y: "start" });
+    expect(validateIconSpec(bottomLeft, flipped).issues).toEqual([]);
+  });
+
+  it("uses the badge ratio from the grammar", () => {
+    const small = parseIconLanguage({ ...technical, sizes: undefined, grammar: { ...technical.grammar, badge: { ratio: 0.2, corner: "top-right" } } });
+    const spec = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "x" }, small);
+    const wide = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "x" }, technical);
+    expect(spec.elements[1]!.width!).toBeLessThan(wide.elements[1]!.width!);
+  });
+
+  it("keeps every generated icon inside the language's construction and gap rules", () => {
+    for (const canvas of [16, 24]) {
+      for (const modifiers of [[], ["snowflake"], ["snowflake", "thermometer"]]) {
+        const spec = intentToSpec({ subject: "warehouse", modifiers, text: "warehouse" }, technical, { canvas });
+        expect(validateIconSpec(spec, technical).issues).toEqual([]);
+      }
+    }
   });
 });

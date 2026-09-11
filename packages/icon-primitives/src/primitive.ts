@@ -28,6 +28,13 @@ export interface Primitive {
   opticalShape: OpticalShape;
   /** Words that map natural-language intent to this primitive. */
   keywords: readonly string[];
+  /**
+   * True when the shape's concept demands angles outside the language grammar
+   * (a triangle, an isometric box, a snowflake's 60° symmetry). Declared once
+   * here and reviewed by a human, so the construction rule can police
+   * everything else — especially freeform geometry.
+   */
+  freeAngles?: boolean;
   /** Where the primitive came from. Built-ins are `builtin`; user-defined
    * elements carry their library status. */
   origin?: "builtin" | "approved" | "draft";

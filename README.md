@@ -36,7 +36,9 @@ Validator
 Figma component
 ```
 
-**An Icon Language.** A small, versioned JSON file that defines what makes your icons yours: optical sizes with their own stroke, safe area, and detail budget, keyline boxes so wide and round icons read as the same size, minimum negative space, caps and joins, corner radius, allowed styles and colours. Start from the bundled Lucide-inspired language and evolve it into a proprietary one.
+**An Icon Language, in three layers.** *Character*: the purpose, personality, principles, and the metaphors your set refuses. *Grammar*: how icons are constructed, such as 45° line angles, closed shapes, where a badge sits, and how much gap two parts must keep. *Tokens*: optical sizes with their own stroke, safe area and detail budget, keyline boxes so a wide icon and a round one read as the same size, corner radius, allowed styles and colours. The character is not documentation; it is the prompt any drafting agent receives, and the grammar is what the validator enforces.
+
+Two languages ship. **Technical** is the default: a 16px primary size at a 1.25 stroke with a 24px companion, construction on 45° increments, closed shapes, and gaps wide enough to survive at small sizes. **Lucide-inspired** is a second worked example. Copy either and make it yours.
 
 **A growing vocabulary.** Composable building blocks such as warehouse, package, vehicle, document, person, snowflake, thermometer, clock, warning, arrow, and basic shapes. Each adapts to the active language, so a warehouse drawn today and one drawn next year share the same stroke and proportions. When a subject is missing, a freeform path or a user-defined element drawn once becomes part of the vocabulary, and every later use is consistent.
 
@@ -44,7 +46,7 @@ Figma component
 
 **A deterministic composer and renderer.** Same spec plus same language always gives the same output. No randomness, no network, no API key.
 
-**A first-class validator.** Every icon is checked against its language before it counts as done: optical size, safe area, stroke width, caps, joins, colours, grid alignment, negative space between elements, geometry sanity, and complexity. Results are structured so tools can show a checklist instead of a wall of text.
+**A first-class validator.** Every icon is checked against its language before it counts as done: optical size, safe area, stroke width, caps, joins, colours, grid alignment, negative space between parts, construction angles, geometry sanity, and complexity. Results are structured so tools can show a checklist instead of a wall of text.
 
 **A studio in the browser.** A library page with every icon at true size, searchable by concept, with a draft, review, published, deprecated lifecycle. A create page where you describe an icon and get three validated candidates with a rationale each, approve one, or refine it in words. A language page and an elements page showing the vocabulary. Your library is a plain folder of JSON that you own and commit to Git; the app opens it directly from disk.
 
@@ -61,16 +63,34 @@ Figma component
   "id": "company-icons",
   "name": "Company Icons",
   "version": "0.1.0",
-  "canvas": 24,
-  "grid": 1,
-  "safeArea": 2,
-  "stroke": { "width": 2, "cap": "round", "join": "round" },
-  "cornerRadius": 2,
+
+  "character": {
+    "purpose": "Icons for a tool someone uses all day. They should be read, not noticed.",
+    "axes": { "geometric": 80, "minimal": 75, "technical": 70, "literal": 60 },
+    "metaphors": { "use": ["containers", "arrows", "badges"], "avoid": ["faces", "fake depth"] },
+    "principles": [
+      "Detail is a budget, not a bonus. If it disappears at 16px, it should not be drawn.",
+      "Draw a recurring part the same way every time it appears."
+    ]
+  },
+
+  "grammar": {
+    "angles": [0, 45, 90, 135],
+    "closedShapes": true,
+    "badge": { "ratio": 0.35, "corner": "top-right" },
+    "silhouette": true
+  },
+
+  "canvas": 16,
+  "grid": 0.5,
+  "safeArea": 1,
+  "stroke": { "width": 1.25, "cap": "round", "join": "round" },
+  "cornerRadius": 1.5,
+  "minNegativeSpace": 1.5,
   "style": { "default": "outline", "allowed": ["outline", "filled"] },
   "colors": { "allowed": ["currentColor"] },
   "detail": "low",
-  "minNegativeSpace": 2,
-  "sizes": [{ "canvas": 16, "safeArea": 1, "stroke": { "width": 1.5 } }]
+  "sizes": [{ "canvas": 24, "safeArea": 1.5, "stroke": { "width": 1.5 }, "minNegativeSpace": 2 }]
 }
 ```
 
@@ -110,6 +130,7 @@ A validation result for an icon that breaks the rules looks like this:
 
 ```text
 error   safeArea     Geometry leaves the 2-unit safe area by 1.50 units.
+warning construction Lines at 26.6° do not follow the language's construction angles (0°, 45°, 90°, 135°).
 warning strokeWidth  Stroke is 50% heavier than the language stroke width (3 vs 2).
 warning strokeCap    Stroke cap "butt" differs from the language cap "round".
 error   color        Color "#ff0000" is not allowed (allowed: currentColor).
@@ -189,7 +210,8 @@ packages/
   icon-library/        Team-owned library folder format, lifecycle, search
   icon-agent/          Create agent: tools over the core, planner, pluggable providers
 languages/
-  lucide-inspired/     Starter language, plus a JSON schema for authoring your own
+  technical/           The default language: character, grammar and two optical sizes
+  lucide-inspired/     A second worked example, plus a JSON schema for authoring your own
 examples/              IconSpec examples, including an intentionally invalid one
 docs/                  Specification and architecture decisions
 ```
@@ -198,7 +220,7 @@ docs/                  Specification and architecture decisions
 
 - **New primitive.** Add a `definePrimitive` to `packages/icon-primitives/src/{shapes,objects,symbols}`. The registry, the intent parser, and the test suite pick it up automatically.
 - **New rule.** Add a `defineRule` in `packages/icon-validator/src/rules` and a failing-spec test.
-- **New language.** Copy `languages/lucide-inspired/language.json`, change the id and tokens, and register it in `@icon-foundry/icon-language`.
+- **New language.** Copy `languages/technical/language.json`, rewrite the character and grammar for your team, change the tokens, and register it in `@icon-foundry/icon-language`.
 - **Your own model.** Implement the small `AgentModel` contract in `@icon-foundry/icon-agent`, or point the OpenAI-compatible provider at any endpoint. Vendor SDKs are only imported in the provider adapters.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

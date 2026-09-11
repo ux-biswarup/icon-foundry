@@ -1,3 +1,4 @@
+import { DEFAULT_LANGUAGE_ID } from "@icon-foundry/icon-language";
 import { Library } from "@icon-foundry/icon-library";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { seedDemo } from "./demo.js";
@@ -93,7 +94,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       },
       async createInFolder(input) {
         if (!pendingFolder) throw new Error("no folder selected");
-        const lib = await Library.create(new DirectoryStore(pendingFolder), { ...input, language: "lucide-inspired" });
+        const lib = await Library.create(new DirectoryStore(pendingFolder), { ...input, language: DEFAULT_LANGUAGE_ID });
         setLibrary(lib);
         setError(undefined);
         setPendingFolder(undefined);

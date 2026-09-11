@@ -34,7 +34,7 @@ export async function createIcon(options: CreateIconOptions): Promise<AgentResul
   let text = "";
   try {
     const result = await model.run({
-      system: systemPrompt(library.language),
+      system: systemPrompt(library.language, brief.canvas),
       prompt: userPrompt(brief),
       tools,
       maxSteps: options.maxSteps ?? 24,
