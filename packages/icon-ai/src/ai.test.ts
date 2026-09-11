@@ -110,3 +110,21 @@ describe("recipes follow the language grammar", () => {
     }
   });
 });
+
+describe("icon naming", () => {
+  const name = (text: string, modifiers: string[] = ["snowflake"]) =>
+    intentToSpec({ subject: "warehouse", modifiers, text }, technical).name;
+
+  it("names an icon after a short brief", () => {
+    expect(name("temperature controlled warehouse")).toBe("temperature-controlled-warehouse");
+  });
+
+  it("falls back to the parts when the brief is a sentence", () => {
+    expect(name("a cold storage warehouse, and maybe a cat")).toBe("snowflake-warehouse");
+    expect(name("we need something for the refrigerated depot on the overview screen")).toBe("snowflake-warehouse");
+  });
+
+  it("still names a bare subject", () => {
+    expect(name("warehouse", [])).toBe("warehouse");
+  });
+});

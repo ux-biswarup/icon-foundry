@@ -62,7 +62,11 @@ export function intentToSpec(intent: IconIntent, language: IconLanguage, options
   const content = C - 2 * S;
   const modifiers = intent.modifiers.slice(0, 2);
   const keyline = subjectBox(intent.subject, tokens, registry);
-  const name = options.name ?? (slugify(intent.text ?? [...modifiers, intent.subject].join("-")) || intent.subject);
+  // A short brief makes a good name; a sentence does not, so fall back to the
+  // parts the icon is actually made of.
+  const fromText = slugify(intent.text ?? "");
+  const derived = slugify([...modifiers, intent.subject].join("-")) || intent.subject;
+  const name = options.name ?? (fromText && fromText.split("-").length <= 4 ? fromText : derived);
 
   if (modifiers.length === 0) {
     return baseSpec(intent, language, tokens, [{ primitive: intent.subject, ...keyline }], "single", name);
