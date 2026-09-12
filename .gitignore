@@ -9,3 +9,6 @@ examples/out/
 libraries/
 apps/web/.env
 apps/web/.env.local
+
+# graphify: generated knowledge graph
+graphify-out/
