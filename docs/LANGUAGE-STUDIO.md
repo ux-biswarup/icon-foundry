@@ -279,3 +279,67 @@ The changes it forces on this proposal:
 - **Explorations are a workflow.** Generating several candidates and
   comparing them at true size is how the human process works; the plugin
   should support it before any model does.
+
+---
+
+## 9. Addendum: the Studio comes first (2026-09-12)
+
+[PLAN.md](PLAN.md) now opens with this, not with the concept registry. The
+argument is in that document; what follows is the design consequence.
+
+### The blank page is the whole risk
+
+"Define your philosophy" is the worst possible first screen. §6 of PRODUCT.md
+argues that a large authored schema is a guess, because Cursor's rules emerged
+from drawing 600 icons. That objection is answered not by asking for less, but
+by never asking cold. Three rules:
+
+**Never blank.** A language always begins as something complete and working.
+Three entry points, in order of strength for a team that already has icons:
+
+1. **Measure what you have.** Point at an existing SVG set; we measure stroke,
+   corner radius, canvas, and angle distribution, and propose tokens and a
+   grammar from *their* reality. The strongest opening move, and the reason a
+   team with 300 icons should start here rather than with a preset.
+2. **Start from a lineage.** Technical or Lucide-like, then diverge. The
+   Studio records what changed, so the language has a history and a reason.
+3. **Answer a few questions.** Six to eight forced choices about how the icons
+   should feel, which set the axes and derive the rest. Two minutes from
+   nothing to a working language.
+
+**Never a number in the abstract.** No field says "corner radius". A control
+shows two exemplars and asks which is right. The number is stored; the
+decision is made by looking.
+
+**Never locked in.** Changing the language re-renders the set, with a diff
+shown before anything is written. Say this on the first screen, because it is
+what makes declaring early safe, and it is the thing Cursor could not do.
+
+### Show where each statement lands
+
+The character layer only gets taken seriously if the team can see it working.
+Every field states its destination, in the UI, next to the field:
+
+| What the team writes | Where it lands |
+| --- | --- |
+| Purpose | The opening line of the agent's brief; shown above the set in review |
+| Principle | Handed to the agent verbatim, one bullet each |
+| Metaphor to refuse | A review check: "this uses a face, which your language refuses" |
+| Personality axis | Biases the derived tokens; moving it moves the exemplars |
+| Line angles | A validator rule that fails geometry off the grammar |
+| Badge corner and ratio | Every generated layout, immediately |
+
+A principle that nothing consumes should be labelled as guidance, honestly,
+rather than implying an enforcement that does not exist. Some principles
+cannot be checked — "do not make it clever" — and saying so is better than
+pretending.
+
+### Derive, do not enumerate
+
+The Studio asks roughly eight questions and proposes the rest. Every derived
+value can be unlocked and overridden, and an override is recorded as a
+deliberate exception rather than silently replacing the derivation. This is
+what keeps the language file small while the set is small, and it is the same
+mechanism M4 later uses in reverse: emergent patterns promoted to declared
+rules as the set earns them.
+
