@@ -3,7 +3,7 @@ import { NoVocabularyError, plan } from "./planner.js";
 import { systemPrompt, userPrompt } from "./prompt.js";
 import { Session } from "./session.js";
 import { buildTools } from "./tools.js";
-import type { AgentModel, AgentResult, Brief } from "./types.js";
+import type { AgentModel, AgentResult, Brief, Candidate } from "./types.js";
 
 export interface CreateIconOptions {
   brief: Brief;
@@ -20,13 +20,39 @@ export interface CreateIconOptions {
  * Without one, or if the model produces nothing usable: the planner arranges
  * existing vocabulary. Either way nothing is published; the caller decides.
  */
+/**
+ * Best first. Soft preferences cannot reject a candidate, but they can say
+ * which of three is the one to look at — which is the 156-hamburger process
+ * with the comparison done for you.
+ */
+function ranked(candidates: Candidate[]): Candidate[] {
+  return [...candidates].sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0));
+}
+
 export async function createIcon(options: CreateIconOptions): Promise<AgentResult> {
   const { brief, library, model } = options;
+
+  // The cheapest icon is the one that already exists. Resolving the brief
+  // against the concept registry costs nothing and needs no model, and it is
+  // the only thing that stops a set accumulating three icons for one meaning.
+  if (!brief.feedback) {
+    const concept = library.resolveConcept(brief.text);
+    const icon = concept ? library.iconForConcept(concept.id, library.language.id) : undefined;
+    if (concept && icon) {
+      return {
+        candidates: [],
+        model: "registry",
+        notes: [`"${concept.name}" is already answered by ${icon.spec.name}. Nothing was drafted.`],
+        steps: [{ tool: "resolve_concept", input: { text: brief.text }, output: { concept: concept.id, icon: icon.spec.name } }],
+        existing: { concept, icon },
+      };
+    }
+  }
 
   if (!model) {
     const session = new Session(library, "planner");
     const candidates = plan(brief, session);
-    return { candidates, model: "planner", notes: session.notes, steps: session.steps };
+    return { candidates: ranked(candidates), model: "planner", notes: session.notes, steps: session.steps };
   }
 
   const session = new Session(library, "model");
@@ -49,7 +75,12 @@ export async function createIcon(options: CreateIconOptions): Promise<AgentResul
     try {
       const candidates = plan(brief, fallback);
       if (session.notes.length === 0) session.notes.push("The model produced no valid candidate; showing deterministic layouts instead.");
-      return { candidates, model: `${model.id} → planner`, notes: [...session.notes, ...fallback.notes], steps: session.steps };
+      return {
+        candidates: ranked(candidates),
+        model: `${model.id} → planner`,
+        notes: [...session.notes, ...fallback.notes],
+        steps: session.steps,
+      };
     } catch (error) {
       if (error instanceof NoVocabularyError) {
         return { candidates: [], model: model.id, notes: [...session.notes, error.message], steps: session.steps };
@@ -59,5 +90,5 @@ export async function createIcon(options: CreateIconOptions): Promise<AgentResul
   }
 
   if (text.trim()) session.notes.push(text.trim());
-  return { candidates: session.candidates, model: model.id, notes: session.notes, steps: session.steps };
+  return { candidates: ranked(session.candidates), model: model.id, notes: session.notes, steps: session.steps };
 }

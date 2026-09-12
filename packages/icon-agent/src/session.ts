@@ -5,7 +5,7 @@ import { renderSvg } from "@icon-foundry/icon-renderer";
 import type { IconSpec } from "@icon-foundry/icon-spec";
 import { validateIconSpec, type ValidationResult } from "@icon-foundry/icon-validator";
 import type { Library } from "@icon-foundry/icon-library";
-import type { AgentStep, Candidate } from "./types.js";
+import type { AgentStep, Candidate, ProposedConcept } from "./types.js";
 
 export const MAX_CANDIDATES = 3;
 
@@ -18,6 +18,7 @@ export class Session {
   readonly language: IconLanguage;
   readonly candidates: Candidate[] = [];
   readonly proposedElements = new Map<string, PathPrimitiveDefinition>();
+  readonly proposedConcepts = new Map<string, ProposedConcept>();
   readonly steps: AgentStep[] = [];
   readonly notes: string[] = [];
   private registry_: PrimitiveRegistry;
@@ -78,7 +79,7 @@ export class Session {
   }
 
   /** Add a validated candidate. Errors are rejected; warnings are allowed and shown. */
-  addCandidate(spec: IconSpec, rationale: string): Candidate {
+  addCandidate(spec: IconSpec, rationale: string, concept?: string): Candidate {
     const { validation, svg } = this.evaluate(spec);
     if (!validation.valid || !svg) {
       const errors = validation.issues.filter((i) => i.severity === "error").map((i) => `${i.rule}: ${i.message}`);
@@ -89,8 +90,12 @@ export class Session {
       spec,
       svg,
       validation,
+      scores: validation.scores,
+      overall: validation.overall,
       rationale,
       newElements: this.newElementsFor(spec),
+      ...(concept && { concept }),
+      ...(concept && this.proposedConcepts.has(concept) && { newConcept: this.proposedConcepts.get(concept)! }),
       source: this.source,
     };
     if (this.candidates.length >= MAX_CANDIDATES) this.candidates.shift();

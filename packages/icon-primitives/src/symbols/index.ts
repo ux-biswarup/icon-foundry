@@ -1,5 +1,5 @@
-import { circle, line, p, polyline } from "../geometry.js";
-import { definePrimitive } from "../primitive.js";
+import { circle, cutout, line, p, polyline, rect } from "../geometry.js";
+import { accent, definePrimitive, interiorRadius } from "../primitive.js";
 
 /** Symbols are mostly strokes and therefore render identically in the outline
  * and filled styles, which keeps badges legible on filled icons. */
@@ -46,6 +46,10 @@ export const xPrimitive = definePrimitive({
 
 export const warningPrimitive = definePrimitive({
   name: "warning",
+  // Declines the exterior radius: the triangle is a polyline, with no corner to
+  // take one. The exclamation bar is interior, so it follows whatever the
+  // language says interiors do.
+  traits: ["interiorRadius", "accentSize"],
   freeAngles: true,
   category: "symbol",
   opticalShape: "square",
@@ -54,7 +58,15 @@ export const warningPrimitive = definePrimitive({
   keywords: ["warning", "alert", "exception", "issue", "problem", "caution", "risk", "error"],
   build: (ctx) => {
     const triangle = polyline([[12, 0], [24, 22], [0, 22]], true);
-    if (ctx.style === "filled") return [triangle];
+    // Filled keeps the mark: a warning with no exclamation is just a triangle.
+    // The bar is interior detail, and at 2 units it is narrower than two
+    // strokes, so it stays square in both styles. Kept as a call rather than a
+    // literal so it follows the language if either of those facts changes.
+    const bar = interiorRadius(ctx, 1);
+    const dot = accent(ctx, 1.2);
+    if (ctx.style === "filled") return [triangle, cutout(rect(11, 8, 2, 6, bar)), cutout(circle(12, 17.5, dot))];
+    // Outlined, the dot is a round cap on a stroke of no length, so the accent
+    // reaches it through the stroke rather than a radius. Left as drawn.
     return [triangle, line(12, 8, 12, 13), line(12, 17, 12, 17.01)];
   },
 });
@@ -83,19 +95,26 @@ export const snowflakePrimitive = definePrimitive({
 
 export const thermometerPrimitive = definePrimitive({
   name: "thermometer",
+  traits: ["accentSize"],
   category: "symbol",
   opticalShape: "vertical",
   description: "A thermometer with a round bulb.",
   box: { width: 10, height: 24 },
   keywords: ["thermometer", "temperature", "heat", "hot", "warm", "climate", "degrees"],
-  build: () => {
-    const joinY = 24 - 4 - Math.sqrt(12);
-    return [p().M(3, joinY).L(3, 2).A(2, 2, 0, false, true, 7, 2).L(7, joinY).A(4, 4, 0, true, true, 3, joinY).Z().build(true)];
+  build: (ctx) => {
+    // The bulb is the accent. Its radius sets where the stem meets it, so the
+    // two stay joined however large the language draws it.
+    const bulb = Math.max(2.2, accent(ctx, 4));
+    const joinY = 24 - bulb - Math.sqrt(Math.max(0, bulb * bulb - 4));
+    return [
+      p().M(3, joinY).L(3, 2).A(2, 2, 0, false, true, 7, 2).L(7, joinY).A(bulb, bulb, 0, true, true, 3, joinY).Z().build(true),
+    ];
   },
 });
 
 export const locationPrimitive = definePrimitive({
   name: "location",
+  traits: ["accentSize"],
   category: "symbol",
   opticalShape: "vertical",
   description: "A map pin.",
@@ -110,7 +129,7 @@ export const locationPrimitive = definePrimitive({
       .Z()
       .build(true);
     if (ctx.style === "filled") return [pin];
-    return [pin, circle(10, 10, 3, false)];
+    return [pin, circle(10, 10, Math.min(7, accent(ctx, 3)), false)];
   },
 });
 

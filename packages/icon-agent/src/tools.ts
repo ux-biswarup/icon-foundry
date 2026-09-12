@@ -1,7 +1,7 @@
-import { intentToSpec, slugify } from "@icon-foundry/icon-ai";
+import { composeConcept, intentToSpec, slugify } from "@icon-foundry/icon-ai";
 import { composedBounds, compose } from "@icon-foundry/icon-composer";
 import { resolveTokens } from "@icon-foundry/icon-language";
-import { parseIconSpec } from "@icon-foundry/icon-spec";
+import { ARRANGEMENTS, parseIconSpec } from "@icon-foundry/icon-spec";
 import { z } from "zod";
 import type { Session } from "./session.js";
 import type { AgentTool } from "./types.js";
@@ -24,6 +24,20 @@ function recorded<I, O>(session: Session, tool: AgentTool<I, O>): AgentTool<I, O
   };
 }
 
+const compositionSchema = z.object({
+  arrangement: z.enum(ARRANGEMENTS as unknown as [string, ...string[]]).describe("how the parts relate"),
+  parts: z
+    .array(
+      z.object({
+        element: z.string().describe("an element name from list_elements"),
+        role: z.string().optional().describe("what this part is for, e.g. unit, indicator"),
+        count: z.number().int().min(1).optional(),
+        priority: z.enum(["essential", "optional"]).describe("optional parts are dropped at a tight detail budget"),
+      }),
+    )
+    .min(1),
+});
+
 const elementSchema = z.object({
   name: z.string().describe("kebab-case name, e.g. cat"),
   category: z.enum(["shape", "object", "symbol"]),
@@ -42,6 +56,69 @@ const elementSchema = z.object({
 export function buildTools(session: Session, brief: { canvas?: number }): AgentTool[] {
   const language = session.language;
   const tokens = resolveTokens(language, brief.canvas);
+
+  const resolveConcept = recorded(session, {
+    name: "resolve_concept",
+    description:
+      "Look the brief up in the concept registry FIRST. If it resolves, the set already knows what this means and you should reuse that concept rather than inventing one.",
+    inputSchema: z.object({ text: z.string() }),
+    execute: ({ text }) => {
+      const concept = session.library.resolveConcept(text);
+      if (!concept) return { found: false as const, concepts: session.library.concepts().map((c) => c.id).slice(0, 40) };
+      const icon = session.library.iconForConcept(concept.id);
+      return {
+        found: true as const,
+        concept: { id: concept.id, name: concept.name, aliases: concept.aliases, composition: concept.composition },
+        existingIcon: icon?.spec.name ?? null,
+      };
+    },
+  });
+
+  const proposeConcept = recorded(session, {
+    name: "propose_concept",
+    description:
+      "Record what a new concept MEANS and what it is made of, when resolve_concept found nothing. This is the durable part: once a human approves it, nobody needs a model for this concept again. Say what the thing is made of, not where the parts go — the language decides that.",
+    inputSchema: z.object({
+      id: z.string().describe("kebab-case, e.g. cold-storage"),
+      name: z.string(),
+      description: z.string().optional(),
+      aliases: z.array(z.string()).default([]).describe("other words people use for this"),
+      composition: compositionSchema,
+    }),
+    execute: (input) => {
+      const composition = { arrangement: input.composition.arrangement, parts: input.composition.parts } as never;
+      session.proposedConcepts.set(input.id, {
+        id: input.id,
+        name: input.name,
+        ...(input.description !== undefined && { description: input.description }),
+        aliases: input.aliases,
+        composition,
+      });
+      return { registered: input.id };
+    },
+  });
+
+  const layoutFromConcept = recorded(session, {
+    name: "layout_from_concept",
+    description:
+      "Compile a concept into a ready IconSpec: the language fits it to its keyline box, spaces it, and drops optional parts the detail budget cannot afford. Pass a concept id from resolve_concept or propose_concept.",
+    inputSchema: z.object({ concept: z.string(), name: z.string().optional(), style: z.enum(["outline", "filled"]).optional() }),
+    execute: ({ concept: id, name, style }) => {
+      const proposed = session.proposedConcepts.get(id);
+      const stored = session.library.getConcept(id);
+      const composition = proposed?.composition ?? stored?.composition;
+      if (!composition) return { error: `no concept "${id}", or it has no composition yet` };
+      const spec = composeConcept(composition, language, {
+        name: slugify(name ?? id) || id,
+        registry: session.registry,
+        ...(style && { style }),
+        ...(brief.canvas !== undefined && { canvas: brief.canvas }),
+        meta: { concept: id },
+      });
+      const { validation } = session.evaluate(spec);
+      return { spec, concept: id, valid: validation.valid, issues: validation.issues };
+    },
+  });
 
   const searchLibrary = recorded(session, {
     name: "search_library",
@@ -127,15 +204,16 @@ export function buildTools(session: Session, brief: { canvas?: number }): AgentT
     inputSchema: z.object({
       spec: z.unknown().describe("an IconSpec object"),
       rationale: z.string().describe("one or two sentences for the designer, in plain design language"),
+      concept: z.string().optional().describe("the concept id this icon answers"),
     }),
-    execute: ({ spec: raw, rationale }) => {
+    execute: ({ spec: raw, rationale, concept }) => {
       const spec = parseIconSpec(raw);
       const { validation, svg } = session.evaluate(spec);
       const bounds = svg ? composedBounds(compose(spec, language, { registry: session.registry })) : undefined;
       if (!validation.valid) {
         return { accepted: false, issues: validation.issues, bounds };
       }
-      const candidate = session.addCandidate(spec, rationale);
+      const candidate = session.addCandidate(spec, rationale, concept);
       return { accepted: true, candidateId: candidate.id, warnings: validation.issues, bounds };
     },
   });
@@ -172,5 +250,16 @@ export function buildTools(session: Session, brief: { canvas?: number }): AgentT
     },
   });
 
-  return [searchLibrary, listElements, readLanguage, layoutFromIntent, draftIcon, proposeElement, note];
+  return [
+    resolveConcept,
+    searchLibrary,
+    listElements,
+    readLanguage,
+    proposeConcept,
+    layoutFromConcept,
+    layoutFromIntent,
+    draftIcon,
+    proposeElement,
+    note,
+  ];
 }

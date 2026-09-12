@@ -8,15 +8,27 @@ importers:
 
   .:
     devDependencies:
+      '@icon-foundry/icon-agent':
+        specifier: workspace:*
+        version: link:packages/icon-agent
       '@icon-foundry/icon-ai':
         specifier: workspace:*
         version: link:packages/icon-ai
+      '@icon-foundry/icon-audit':
+        specifier: workspace:*
+        version: link:packages/icon-audit
       '@icon-foundry/icon-composer':
         specifier: workspace:*
         version: link:packages/icon-composer
+      '@icon-foundry/icon-export':
+        specifier: workspace:*
+        version: link:packages/icon-export
       '@icon-foundry/icon-language':
         specifier: workspace:*
         version: link:packages/icon-language
+      '@icon-foundry/icon-library':
+        specifier: workspace:*
+        version: link:packages/icon-library
       '@icon-foundry/icon-primitives':
         specifier: workspace:*
         version: link:packages/icon-primitives
@@ -43,28 +55,6 @@ importers:
         version: 2.1.9(@types/node@20.19.43)(lightningcss@1.33.0)
 
   apps/figma-plugin:
-    dependencies:
-      '@icon-foundry/icon-ai':
-        specifier: workspace:*
-        version: link:../../packages/icon-ai
-      '@icon-foundry/icon-composer':
-        specifier: workspace:*
-        version: link:../../packages/icon-composer
-      '@icon-foundry/icon-language':
-        specifier: workspace:*
-        version: link:../../packages/icon-language
-      '@icon-foundry/icon-primitives':
-        specifier: workspace:*
-        version: link:../../packages/icon-primitives
-      '@icon-foundry/icon-renderer':
-        specifier: workspace:*
-        version: link:../../packages/icon-renderer
-      '@icon-foundry/icon-spec':
-        specifier: workspace:*
-        version: link:../../packages/icon-spec
-      '@icon-foundry/icon-validator':
-        specifier: workspace:*
-        version: link:../../packages/icon-validator
     devDependencies:
       '@figma/plugin-typings':
         specifier: ^1.100.0
@@ -84,9 +74,15 @@ importers:
       '@icon-foundry/icon-ai':
         specifier: workspace:*
         version: link:../../packages/icon-ai
+      '@icon-foundry/icon-audit':
+        specifier: workspace:*
+        version: link:../../packages/icon-audit
       '@icon-foundry/icon-composer':
         specifier: workspace:*
         version: link:../../packages/icon-composer
+      '@icon-foundry/icon-export':
+        specifier: workspace:*
+        version: link:../../packages/icon-export
       '@icon-foundry/icon-language':
         specifier: workspace:*
         version: link:../../packages/icon-language
@@ -184,6 +180,33 @@ importers:
       '@icon-foundry/icon-primitives':
         specifier: workspace:*
         version: link:../icon-primitives
+      '@icon-foundry/icon-renderer':
+        specifier: workspace:*
+        version: link:../icon-renderer
+      '@icon-foundry/icon-spec':
+        specifier: workspace:*
+        version: link:../icon-spec
+      '@icon-foundry/icon-validator':
+        specifier: workspace:*
+        version: link:../icon-validator
+
+  packages/icon-audit:
+    dependencies:
+      '@icon-foundry/icon-composer':
+        specifier: workspace:*
+        version: link:../icon-composer
+      '@icon-foundry/icon-language':
+        specifier: workspace:*
+        version: link:../icon-language
+      '@icon-foundry/icon-library':
+        specifier: workspace:*
+        version: link:../icon-library
+      '@icon-foundry/icon-primitives':
+        specifier: workspace:*
+        version: link:../icon-primitives
+      '@icon-foundry/icon-renderer':
+        specifier: workspace:*
+        version: link:../icon-renderer
       '@icon-foundry/icon-spec':
         specifier: workspace:*
         version: link:../icon-spec
@@ -203,7 +226,26 @@ importers:
         specifier: workspace:*
         version: link:../icon-spec
 
-  packages/icon-language: {}
+  packages/icon-export:
+    dependencies:
+      '@icon-foundry/icon-language':
+        specifier: workspace:*
+        version: link:../icon-language
+      '@icon-foundry/icon-library':
+        specifier: workspace:*
+        version: link:../icon-library
+      '@icon-foundry/icon-renderer':
+        specifier: workspace:*
+        version: link:../icon-renderer
+      '@icon-foundry/icon-spec':
+        specifier: workspace:*
+        version: link:../icon-spec
+
+  packages/icon-language:
+    dependencies:
+      '@icon-foundry/icon-spec':
+        specifier: workspace:*
+        version: link:../icon-spec
 
   packages/icon-library:
     dependencies:

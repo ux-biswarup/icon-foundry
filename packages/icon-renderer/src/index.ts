@@ -1,4 +1,4 @@
-import { compose, type ComposeOptions, type ComposedIcon, type ComposedShape } from "@icon-foundry/icon-composer";
+import { applyOptics, compose, type ComposeOptions, type ComposedIcon, type ComposedShape } from "@icon-foundry/icon-composer";
 import type { IconLanguage, SizeTokens } from "@icon-foundry/icon-language";
 import type { PathCommand, Shape } from "@icon-foundry/icon-primitives";
 import type { IconSpec } from "@icon-foundry/icon-spec";
@@ -10,6 +10,26 @@ export interface RenderOptions {
   dimensions?: boolean;
   /** Emit the xmlns attribute. Default true. Figma's SVG importer accepts both. */
   xmlns?: boolean;
+  /**
+   * Render for a dark ground, applying the language's grade.
+   *
+   * A light shape on a dark ground reads heavier than the same shape inverted
+   * at the same stroke, which is why Material Symbols ships a whole variable
+   * axis for it. A language with no grade is unaffected, so this is safe to
+   * pass whenever the ground is known.
+   */
+  onDark?: boolean;
+  /**
+   * Apply the language's optical corrections. Default true, and a no-op for
+   * every language that has not asked for any.
+   *
+   * Rendering is where this belongs. The validator judges what the compiler
+   * laid out, so a notch that opens a hair of a gap must not read as a
+   * negative-space failure, and an audit comparing two icons must compare the
+   * geometry rather than the retouching. Set false to see the uncorrected
+   * drawing.
+   */
+  optics?: boolean;
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -73,6 +93,39 @@ export function shapeToPathData(shape: Shape, precision = 3): string {
   }
 }
 
+/**
+ * Filled geometry is one path, not many.
+ *
+ * A hole only exists relative to the shape it is cut from, so the body and its
+ * cutouts have to be a single path with an even-odd fill rule. Rendering them
+ * as separate elements would paint the hole on top in the same colour, which
+ * is indistinguishable from having no hole at all.
+ */
+function renderShapes(icon: ComposedIcon, tokens: SizeTokens, precision: number): string {
+  const solid: ComposedShape[] = [];
+  const rest: ComposedShape[] = [];
+  for (const item of icon.shapes) {
+    const filled = item.style === "filled" && item.shape.fillable;
+    (filled ? solid : rest).push(item);
+  }
+
+  const out: string[] = [];
+  // Group by colour: two colours cannot share one path.
+  const byColour = new Map<string, ComposedShape[]>();
+  for (const item of solid) byColour.set(item.color, [...(byColour.get(item.color) ?? []), item]);
+  for (const [color, group] of byColour) {
+    const hasCutout = group.some((item) => item.shape.cutout === true);
+    if (!hasCutout) {
+      for (const item of group) out.push(shapeElement(item, tokens, precision));
+      continue;
+    }
+    const d = group.map((item) => shapeToPathData(item.shape, precision)).join("");
+    out.push(`<path d="${d}" fill="${color}" fill-rule="evenodd" stroke="none"/>`);
+  }
+  for (const item of rest) out.push(shapeElement(item, tokens, precision));
+  return out.join("");
+}
+
 type Attrs = Array<[string, string]>;
 
 function attrsToString(attrs: Attrs): string {
@@ -120,19 +173,41 @@ function shapeElement(item: ComposedShape, tokens: SizeTokens, precision: number
 }
 
 /**
+ * Apply the grade offset, which exists only because the eye is wrong about
+ * reversed contrast in a predictable direction.
+ *
+ * Every stroke is scaled by the same fraction, including the root default, so
+ * the icon keeps one weight rather than acquiring a hierarchy it never asked
+ * for. A negative grade thins; the floor stops a large one from erasing the
+ * drawing outright.
+ */
+function applyGrade(icon: ComposedIcon): ComposedIcon {
+  const { grade } = icon.construction;
+  if (!grade) return icon;
+  const factor = Math.max(0.1, 1 + grade);
+  return {
+    ...icon,
+    tokens: { ...icon.tokens, stroke: { ...icon.tokens.stroke, width: icon.tokens.stroke.width * factor } },
+    shapes: icon.shapes.map((item) => ({ ...item, stroke: { ...item.stroke, width: item.stroke.width * factor } })),
+  };
+}
+
+/**
  * Render a composed icon to a compact, deterministic SVG string.
  * Root attributes carry the size tokens the icon was composed with, so
  * per-shape output stays minimal. The language argument is accepted for API
  * symmetry; tokens come from the composition.
  */
 export function renderSvg(icon: ComposedIcon, _language?: IconLanguage, options: RenderOptions = {}): string {
-  const tokens = icon.tokens;
+  const graded = options.onDark ? applyGrade(icon) : icon;
+  const corrected = (options.optics ?? true) ? applyOptics(graded).icon : graded;
+  const tokens = corrected.tokens;
   const precision = options.precision ?? 3;
   const f = (n: number) => formatNumber(n, precision);
   const root: Attrs = [];
   if (options.xmlns ?? true) root.push(["xmlns", SVG_NS]);
-  root.push(["viewBox", `0 0 ${f(icon.canvas)} ${f(icon.canvas)}`]);
-  if (options.dimensions ?? true) root.push(["width", f(icon.canvas)], ["height", f(icon.canvas)]);
+  root.push(["viewBox", `0 0 ${f(corrected.canvas)} ${f(corrected.canvas)}`]);
+  if (options.dimensions ?? true) root.push(["width", f(corrected.canvas)], ["height", f(corrected.canvas)]);
   root.push(
     ["fill", "none"],
     ["stroke", "currentColor"],
@@ -141,7 +216,7 @@ export function renderSvg(icon: ComposedIcon, _language?: IconLanguage, options:
     ["stroke-linejoin", tokens.stroke.join],
   );
 
-  const body = icon.shapes.map((s) => shapeElement(s, tokens, precision)).join("");
+  const body = renderShapes(corrected, tokens, precision);
   return `<svg${attrsToString(root)}>${body}</svg>`;
 }
 

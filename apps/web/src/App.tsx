@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { navigate, useRoute } from "./lib/router.js";
+import { THEMES, useTheme } from "./lib/theme.js";
 import { CreatePage } from "./pages/CreatePage.js";
-import { ElementsPage } from "./pages/ElementsPage.js";
 import { LanguagePage } from "./pages/LanguagePage.js";
 import { LibraryPage } from "./pages/LibraryPage.js";
 import { useLibrary } from "./store/LibraryContext.js";
@@ -11,6 +11,7 @@ export function App() {
   const route = useRoute();
   const { library, source, loading, error, openFolder, useBrowser, createInFolder } = useLibrary();
   const [busy, setBusy] = useState(false);
+  const [theme, setTheme] = useTheme();
   const [newId, setNewId] = useState("");
 
   const guard = (fn: () => Promise<void>) => async () => {
@@ -39,10 +40,16 @@ export function App() {
         <a className={route.page === "language" ? "on" : ""} href="#/language">
           Language
         </a>
-        <a className={route.page === "elements" ? "on" : ""} href="#/elements">
-          Elements
-        </a>
         <span className="spacer" />
+        {/* Icons are judged on both grounds, so the app has to be able to show
+            either one on demand rather than inheriting whatever the machine says. */}
+        <div className="theme-seg" role="group" aria-label="Theme">
+          {THEMES.map((t) => (
+            <button key={t} className={theme === t ? "on" : ""} onClick={() => setTheme(t)} aria-pressed={theme === t}>
+              {t}
+            </button>
+          ))}
+        </div>
         <span className="source">
           {source?.kind === "folder" ? `📁 ${source.name}` : "Browser-only library"}
           {library && <span className="muted"> · {library.manifest.name}</span>}
@@ -90,7 +97,6 @@ export function App() {
           {route.page === "library" && <LibraryPage selected={route.name} />}
           {route.page === "create" && <CreatePage />}
           {route.page === "language" && <LanguagePage />}
-          {route.page === "elements" && <ElementsPage />}
         </>
       )}
       {!loading && !library && source?.kind !== "folder" && error && <p className="page error-text">{error}</p>}

@@ -1,0 +1,264 @@
+[
+  {
+    "name": "snowflake-warehouse",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Badge composition on a horizontal subject",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "warehouse",
+        "x": 2,
+        "y": 9,
+        "width": 15,
+        "height": 11,
+        "align": {
+          "x": "start",
+          "y": "end"
+        }
+      },
+      {
+        "primitive": "snowflake",
+        "x": 15,
+        "y": 2,
+        "width": 7,
+        "height": 7
+      }
+    ]
+  },
+  {
+    "name": "plus-document",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Badge composition on a vertical subject",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "document",
+        "x": 4,
+        "y": 7,
+        "width": 11,
+        "height": 15,
+        "align": {
+          "x": "start",
+          "y": "end"
+        }
+      },
+      {
+        "primitive": "plus",
+        "x": 15,
+        "y": 2,
+        "width": 7,
+        "height": 7
+      }
+    ]
+  },
+  {
+    "name": "clock",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Circle keyline box",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "clock",
+        "x": 2,
+        "y": 2,
+        "width": 20,
+        "height": 20
+      }
+    ]
+  },
+  {
+    "name": "warning",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Carries the only dot in the set, so the dot size token has something to move",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "warning",
+        "x": 2,
+        "y": 2,
+        "width": 20,
+        "height": 20
+      }
+    ]
+  },
+  {
+    "name": "package",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Square keyline box",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "package",
+        "x": 3,
+        "y": 3,
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "name": "person",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Vertical keyline box",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "person",
+        "x": 4,
+        "y": 2,
+        "width": 16,
+        "height": 20
+      }
+    ]
+  },
+  {
+    "name": "vehicle",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Horizontal keyline box",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "vehicle",
+        "x": 2,
+        "y": 4,
+        "width": 20,
+        "height": 16
+      }
+    ]
+  },
+  {
+    "name": "check",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "A pure symbol, mostly strokes",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "check",
+        "x": 2,
+        "y": 4,
+        "width": 20,
+        "height": 16
+      }
+    ]
+  },
+  {
+    "name": "device",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Rounded corners: shows the corner radius",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "device",
+        "x": 2,
+        "y": 4,
+        "width": 20,
+        "height": 16
+      }
+    ]
+  },
+  {
+    "name": "plus-building",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Rounded corners on a vertical subject, with a badge",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "building",
+        "x": 4,
+        "y": 8,
+        "width": 10,
+        "height": 14,
+        "align": {
+          "x": "start",
+          "y": "end"
+        }
+      },
+      {
+        "primitive": "plus",
+        "x": 15,
+        "y": 2,
+        "width": 7,
+        "height": 7
+      }
+    ]
+  },
+  {
+    "name": "warehouse-snowflake-filled",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "The filled variant of the same composition",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "warehouse",
+        "x": 2,
+        "y": 9,
+        "width": 15,
+        "height": 11,
+        "align": {
+          "x": "start",
+          "y": "end"
+        }
+      },
+      {
+        "primitive": "snowflake",
+        "x": 15,
+        "y": 2,
+        "width": 7,
+        "height": 7
+      }
+    ],
+    "style": "filled"
+  },
+  {
+    "name": "arrow-down",
+    "language": "lucide-inspired",
+    "canvas": 24,
+    "meta": {
+      "description": "Rotation: a right arrow turned to point down",
+      "exemplar": true
+    },
+    "elements": [
+      {
+        "primitive": "arrow",
+        "x": 2,
+        "y": 4,
+        "width": 20,
+        "height": 16,
+        "rotate": 90
+      }
+    ]
+  }
+]

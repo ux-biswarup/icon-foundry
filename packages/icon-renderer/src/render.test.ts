@@ -36,9 +36,38 @@ describe("renderSvg", () => {
 
   it("fills fillable shapes and keeps strokes for symbols in the filled style", () => {
     const svg = renderSpecToSvg({ ...temperatureWarehouse, style: "filled" }, lucideInspired);
-    expect(svg).toContain('fill="currentColor" stroke="none"');
+    expect(svg).toContain('fill="currentColor"');
+    expect(svg).toContain('stroke="none"');
     // snowflake arms remain strokes
     expect(svg.match(/<line /g)?.length).toBe(3);
+  });
+
+  it("cuts interior detail out of a filled shape instead of losing it", () => {
+    const outline = renderSpecToSvg(
+      parseIconSpec({ name: "w", language: "lucide-inspired", canvas: 24, elements: [{ primitive: "warehouse", x: 2, y: 4, width: 20, height: 16 }] }),
+      lucideInspired,
+    );
+    const filled = renderSpecToSvg(
+      parseIconSpec({ name: "w", language: "lucide-inspired", canvas: 24, style: "filled", elements: [{ primitive: "warehouse", x: 2, y: 4, width: 20, height: 16 }] }),
+      lucideInspired,
+    );
+    // The body and its door are one path, or the door would be painted over.
+    expect(filled).toContain('fill-rule="evenodd"');
+    expect(filled.match(/<path /g)?.length).toBe(1);
+    expect(outline).not.toContain("evenodd");
+    // And the door is still there: the filled path is longer than the body alone.
+    expect(filled.length).toBeGreaterThan(120);
+  });
+
+  it("keeps a filled warning's exclamation mark", () => {
+    const filled = renderSpecToSvg(
+      parseIconSpec({ name: "w", language: "lucide-inspired", canvas: 24, style: "filled", elements: [{ primitive: "warning", x: 2, y: 2, size: 20 }] }),
+      lucideInspired,
+    );
+    expect(filled).toContain('fill-rule="evenodd"');
+    // Triangle, bar and dot, merged into one path.
+    expect(filled.match(/<path /g)?.length).toBe(1);
+    expect(filled.match(/M/g)!.length).toBeGreaterThanOrEqual(3);
   });
 
   it("only writes stroke overrides that differ from the language", () => {

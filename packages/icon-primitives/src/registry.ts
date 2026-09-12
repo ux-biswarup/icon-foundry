@@ -30,6 +30,18 @@ export class PrimitiveRegistry {
     return primitive;
   }
 
+  /**
+   * Every primitive that declares it reads this value, in registry order.
+   *
+   * The studio needs this to answer "what does this control reach", which is
+   * the question that keeps a panel of shared controls legible: you should
+   * never wonder what a slider does, because the things it changes are the
+   * things it can name.
+   */
+  consumersOf(trait: string): string[] {
+    return this.names().filter((name) => this.get(name).traits?.includes(trait) === true);
+  }
+
   names(): string[] {
     return [...this.byName.keys()];
   }
@@ -41,6 +53,11 @@ export class PrimitiveRegistry {
   /** New registry containing this registry's primitives plus `extra`. */
   extend(extra: readonly Primitive[]): PrimitiveRegistry {
     return new PrimitiveRegistry([...this.list(), ...extra]);
+  }
+
+  /** New registry with one primitive removed, for previewing a replacement. */
+  without(name: string): PrimitiveRegistry {
+    return new PrimitiveRegistry(this.list().filter((p) => p.name !== name));
   }
 }
 

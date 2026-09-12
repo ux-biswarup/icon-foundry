@@ -1,5 +1,9 @@
 import type {
   Alignment,
+  Arrangement,
+  ConceptComposition,
+  ConceptPart,
+  PartPriority,
   GroupElement,
   IconElement,
   IconSpec,
@@ -203,4 +207,51 @@ export function elementBox(el: IconElement): { x: number; y: number; width: numb
   const width = el.width ?? el.size ?? 0;
   const height = el.height ?? el.size ?? 0;
   return { x: el.x, y: el.y, width, height };
+}
+
+/* ------------------------------------------------------------------ */
+/* Concept composition                                                 */
+/* ------------------------------------------------------------------ */
+
+const ARRANGEMENT_VALUES: readonly Arrangement[] = ["single", "badge", "stack", "row", "contain"];
+const PRIORITIES: readonly PartPriority[] = ["essential", "optional"];
+
+export function parseConceptPart(value: unknown, path: string): ConceptPart {
+  if (!isRecord(value)) fail(path, "expected an object");
+  if (typeof value.element !== "string" || value.element.length === 0) {
+    fail(`${path}.element`, "expected an element name");
+  }
+  const part: ConceptPart = {
+    element: value.element,
+    priority: oneOf(value.priority ?? "essential", PRIORITIES, `${path}.priority`),
+  };
+  if (value.role !== undefined) {
+    if (typeof value.role !== "string") fail(`${path}.role`, "expected a string");
+    part.role = value.role;
+  }
+  if (value.count !== undefined) {
+    const count = finite(value.count, `${path}.count`);
+    if (!Number.isInteger(count) || count < 1) fail(`${path}.count`, "expected a whole number of at least 1");
+    part.count = count;
+  }
+  return part;
+}
+
+/** Parse and structurally validate a concept's decomposition. */
+export function parseConceptComposition(value: unknown, path = "composition"): ConceptComposition {
+  if (!isRecord(value)) fail(path, "expected an object");
+  const arrangement = oneOf(value.arrangement, ARRANGEMENT_VALUES, `${path}.arrangement`);
+  if (!Array.isArray(value.parts) || value.parts.length === 0) {
+    fail(`${path}.parts`, "expected a non-empty array");
+  }
+  const parts = value.parts.map((p, i) => parseConceptPart(p, `${path}.parts[${i}]`));
+  if (!parts.some((p) => p.priority === "essential")) {
+    fail(`${path}.parts`, "at least one part must be essential, or there is nothing to draw at a tight budget");
+  }
+  return { arrangement, parts };
+}
+
+/** Total elements a composition would place if nothing were pruned. */
+export function partCount(parts: readonly ConceptPart[]): number {
+  return parts.reduce((sum, p) => sum + (p.count ?? 1), 0);
 }

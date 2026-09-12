@@ -1,7 +1,9 @@
 # Icon Foundry — agent notes
 
-The full product and MVP specification lives in [docs/AGENTS.md](docs/AGENTS.md).
-Architecture decisions are recorded in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Start at [docs/README.md](docs/README.md), which says what each document is for.
+The short version: [PRODUCT](docs/PRODUCT.md) is why, [COMPILER](docs/COMPILER.md)
+is what we are building, [SYSTEM](docs/SYSTEM.md) is what exists today, and
+[DECISIONS](docs/DECISIONS.md) records why the code is shaped the way it is.
 
 ## Commands
 

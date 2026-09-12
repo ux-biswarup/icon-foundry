@@ -1,159 +1,119 @@
-import { intentToSpec, parseIntentKeywords } from "@icon-foundry/icon-ai";
-import { compose } from "@icon-foundry/icon-composer";
-import { builtInLanguages, type IconLanguage, type IconStyle } from "@icon-foundry/icon-language";
-import { renderSvg } from "@icon-foundry/icon-renderer";
-import { parseIconSpec, type IconSpec } from "@icon-foundry/icon-spec";
-import { builtInRules, validateIconSpec, type ValidationResult } from "@icon-foundry/icon-validator";
-import type { MainToUiMessage, UiToMainMessage } from "./messages.js";
+import type { MainToUiMessage, Payload, PlannedChange, UiToMainMessage } from "./messages.js";
 
 /**
- * Plugin UI. Everything here runs the deterministic core in the browser
- * iframe; the sandbox (main.ts) only receives a finished SVG.
+ * Connect, check, sync, inspect. There is deliberately no way to draw an icon
+ * here: the studio owns authoring, and a second authoring surface is how a set
+ * ends up with two of everything.
  */
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
-  if (!el) throw new Error(`missing element #${id}`);
+  if (!el) throw new Error(`missing #${id}`);
   return el as T;
 };
 
-const descriptionEl = $<HTMLInputElement>("description");
-const languageEl = $<HTMLSelectElement>("language");
-const previewEl = $("preview");
-const checksEl = $("checks");
+const payloadEl = $<HTMLTextAreaElement>("payload");
 const errorEl = $("error");
-const specEl = $<HTMLTextAreaElement>("spec");
-const createBtn = $<HTMLButtonElement>("create");
+const planEl = $("plan");
+const countsEl = $("counts");
+const changesEl = $("changes");
+const syncBtn = $<HTMLButtonElement>("sync");
+const inspectEl = $("inspect");
 
-interface State {
-  spec: IconSpec | undefined;
-  language: IconLanguage;
-  svg: string | undefined;
-  result: ValidationResult | undefined;
-}
+let payload: Payload | undefined;
 
-const languages = Object.values(builtInLanguages);
-for (const lang of languages) {
-  const option = document.createElement("option");
-  option.value = lang.id;
-  option.textContent = `${lang.name} v${lang.version}`;
-  languageEl.append(option);
-}
+const post = (message: UiToMainMessage): void => parent.postMessage({ pluginMessage: message }, "*");
+const showError = (text: string): void => {
+  errorEl.textContent = text;
+};
 
-const state: State = { spec: undefined, language: languages[0]!, svg: undefined, result: undefined };
-
-function selectedStyle(): IconStyle {
-  const checked = document.querySelector<HTMLInputElement>('input[name="style"]:checked');
-  return checked?.value === "filled" ? "filled" : "outline";
-}
-
-function post(message: UiToMainMessage): void {
-  parent.postMessage({ pluginMessage: message }, "*");
-}
-
-function showError(message: string): void {
-  errorEl.textContent = message;
-}
-
-function render(spec: IconSpec): void {
-  const language = state.language;
-  const result = validateIconSpec(spec, language);
-  state.spec = spec;
-  state.result = result;
-
-  if (result.issues.some((i) => i.rule === "compose")) {
-    state.svg = undefined;
-    previewEl.innerHTML = '<span class="muted">Cannot compose this spec.</span>';
-  } else {
-    const svg = renderSvg(compose(spec, language), language);
-    state.svg = svg;
-    previewEl.innerHTML = `<div class="lg">${svg}</div><div class="sm">${svg}</div>`;
-  }
-
-  checksEl.innerHTML = "";
-  for (const rule of builtInRules) {
-    const issues = result.issues.filter((i) => i.rule === rule.id);
-    const li = document.createElement("li");
-    if (issues.length === 0) {
-      li.className = "ok";
-      li.textContent = `✓ ${rule.label}`;
-    } else {
-      const worst = issues.some((i) => i.severity === "error") ? "error" : "warning";
-      li.className = worst;
-      li.textContent = `${worst === "error" ? "✕" : "⚠"} ${rule.label}: ${issues.map((i) => i.message).join(" ")}`;
-    }
-    checksEl.append(li);
-  }
-  for (const issue of result.issues.filter((i) => i.rule === "compose")) {
-    const li = document.createElement("li");
-    li.className = "error";
-    li.textContent = `✕ ${issue.message}`;
-    checksEl.prepend(li);
-  }
-
-  specEl.value = JSON.stringify(spec, null, 2);
-  createBtn.disabled = !(result.valid && state.svg);
-  showError("");
-}
-
-function generate(): void {
-  const text = descriptionEl.value.trim();
+function readPayload(): Payload | undefined {
+  const text = payloadEl.value.trim();
   if (!text) {
-    showError("Describe the icon first.");
-    return;
+    showError("Paste the set first. In the studio: Library, then Copy for Figma.");
+    return undefined;
   }
   try {
-    const intent = parseIntentKeywords(text);
-    intent.style = selectedStyle();
-    render(intentToSpec(intent, state.language));
-  } catch (error) {
-    showError(error instanceof Error ? error.message : String(error));
+    const parsed: unknown = JSON.parse(text);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !Array.isArray((parsed as Payload).icons) ||
+      typeof (parsed as Payload).library !== "string"
+    ) {
+      showError("That is valid JSON but not a set from the studio.");
+      return undefined;
+    }
+    showError("");
+    return parsed as Payload;
+  } catch {
+    showError("That is not valid JSON.");
+    return undefined;
   }
 }
 
-function applySpec(): void {
-  try {
-    const parsed = parseIconSpec(JSON.parse(specEl.value));
-    render(parsed);
-  } catch (error) {
-    showError(error instanceof Error ? error.message : String(error));
-  }
-}
-
-$("generate").addEventListener("click", generate);
-descriptionEl.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") generate();
+$("check").addEventListener("click", () => {
+  payload = readPayload();
+  if (payload) post({ type: "plan", payload });
 });
-$("apply").addEventListener("click", applySpec);
+
+syncBtn.addEventListener("click", () => {
+  if (payload) post({ type: "sync", payload });
+});
+
 $("cancel").addEventListener("click", () => post({ type: "cancel" }));
 
-languageEl.addEventListener("change", () => {
-  state.language = builtInLanguages[languageEl.value] ?? languages[0]!;
-  if (state.spec) render({ ...state.spec, language: state.language.id, canvas: state.language.canvas });
-});
+function renderPlan(changes: PlannedChange[], pageName: string): void {
+  planEl.hidden = false;
+  const count = (kind: PlannedChange["kind"]) => changes.filter((c) => c.kind === kind).length;
+  const parts: Array<[string, number]> = [
+    ["new", count("new")],
+    ["changed", count("changed")],
+    ["deprecated", count("deprecated")],
+    ["unchanged", count("unchanged")],
+  ];
+  countsEl.innerHTML = parts
+    .map(([label, n]) => `<div><b>${n}</b><span class="muted">${label}</span></div>`)
+    .join("");
 
-for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="style"]')) {
-  radio.addEventListener("change", () => {
-    if (state.spec) render({ ...state.spec, style: selectedStyle() });
-  });
+  const willWrite = count("new") + count("changed");
+  syncBtn.disabled = willWrite === 0;
+  syncBtn.textContent = willWrite === 0 ? "Nothing to sync" : `Sync ${willWrite} into ${pageName}`;
+
+  changesEl.innerHTML = changes
+    .filter((c) => c.kind !== "unchanged")
+    .map((c) => `<li><span>${c.name}</span><span class="kind ${c.kind}">${c.kind}</span></li>`)
+    .join("");
 }
-
-createBtn.addEventListener("click", () => {
-  if (!state.spec || !state.svg || !state.result?.valid) return;
-  const { id, name, version } = state.language;
-  post({
-    type: "create-component",
-    svg: state.svg,
-    name: state.spec.name,
-    canvas: state.spec.canvas,
-    style: state.spec.style ?? state.language.style.default,
-    language: { id, name, version },
-    spec: JSON.stringify(state.spec),
-  });
-});
 
 window.onmessage = (event: MessageEvent<{ pluginMessage?: MainToUiMessage }>) => {
   const msg = event.data.pluginMessage;
   if (!msg) return;
-  if (msg.type === "error") showError(msg.message);
+  switch (msg.type) {
+    case "planned":
+      renderPlan(msg.changes, msg.pageName);
+      return;
+    case "synced":
+      showError("");
+      countsEl.innerHTML = `<div><b>${msg.created}</b><span class="muted">created</span></div><div><b>${msg.updated}</b><span class="muted">updated in place</span></div>`;
+      changesEl.innerHTML = "";
+      syncBtn.disabled = true;
+      syncBtn.textContent = "Synced";
+      return;
+    case "inspected":
+      inspectEl.innerHTML = msg.found
+        ? `<dl>
+             <dt>Icon</dt><dd>${msg.name ?? ""}</dd>
+             <dt>Library</dt><dd>${msg.library ?? ""}</dd>
+             <dt>Language</dt><dd>${msg.language ?? ""}</dd>
+             ${msg.concept ? `<dt>Concept</dt><dd>${msg.concept}</dd>` : ""}
+             ${msg.codepoint ? `<dt>Codepoint</dt><dd>${msg.codepoint}</dd>` : ""}
+             <dt>Synced</dt><dd>${msg.syncedAt ? new Date(msg.syncedAt).toLocaleString() : "unknown"}</dd>
+           </dl>`
+        : '<span class="muted">Nothing selected, or the selection did not come from a library.</span>';
+      return;
+    case "error":
+      showError(msg.message);
+      return;
+  }
 };

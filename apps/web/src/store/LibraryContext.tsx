@@ -15,6 +15,8 @@ interface LibraryState {
   version: number;
   /** Run a mutation against the library and re-render. */
   mutate<T>(fn: (library: Library) => Promise<T>): Promise<T>;
+  /** Read from the library without marking anything changed. */
+  read<T>(fn: (library: Library) => Promise<T>): Promise<T>;
   openFolder(): Promise<void>;
   createInFolder(input: { id: string; name: string }): Promise<void>;
   useBrowser(): Promise<void>;
@@ -85,6 +87,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         const out = await fn(library);
         setVersion((v) => v + 1);
         return out;
+      },
+      async read(fn) {
+        if (!library) throw new Error("no library open");
+        return fn(library);
       },
       async openFolder() {
         if (!window.showDirectoryPicker) throw new Error("This browser cannot open folders. Use Chrome or Edge, or the browser-only library.");

@@ -100,3 +100,43 @@ export interface IconSpec {
   meta?: Record<string, unknown>;
   elements: IconElement[];
 }
+
+/* ------------------------------------------------------------------ */
+/* Concepts: what a thing is made of, above where the parts go          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How the parts of a concept relate. The concept says *stack*; the language's
+ * grammar says what a stack looks like in this set, and the tokens say how big
+ * and how heavy. That split is what lets one concept render in two languages.
+ */
+export type Arrangement = "single" | "badge" | "stack" | "row" | "contain";
+
+export const ARRANGEMENTS: readonly Arrangement[] = ["single", "badge", "stack", "row", "contain"];
+
+/**
+ * Priority is how a philosophy prunes. An optional part is dropped when the
+ * detail budget for an optical size cannot afford it, so "reduce concepts to
+ * essential recognizable geometry" becomes arithmetic instead of a sentence.
+ */
+export type PartPriority = "essential" | "optional";
+
+export interface ConceptPart {
+  /** Element or primitive name. */
+  element: string;
+  /** What this part is for, e.g. "unit", "indicator". Documentation, not logic. */
+  role?: string;
+  /** How many of it. Defaults to 1. */
+  count?: number;
+  priority: PartPriority;
+}
+
+/**
+ * What a thing is made of, independent of any visual language. "A server is a
+ * stack of rectangular units with optional indicator dots" is true whether the
+ * set is technical or playful.
+ */
+export interface ConceptComposition {
+  arrangement: Arrangement;
+  parts: ConceptPart[];
+}

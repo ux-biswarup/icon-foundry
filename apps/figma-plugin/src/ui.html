@@ -3,84 +3,63 @@
   <head>
     <meta charset="utf-8" />
     <style>
-      :root {
-        color-scheme: light dark;
-        font: 11px/1.45 Inter, -apple-system, system-ui, sans-serif;
-      }
+      :root { color-scheme: light dark; font: 11px/1.45 Inter, -apple-system, system-ui, sans-serif; }
       body { margin: 0; padding: 12px; color: var(--figma-color-text); background: var(--figma-color-bg); }
-      h1 { font-size: 12px; font-weight: 600; margin: 0 0 12px; }
+      h1 { font-size: 12px; font-weight: 600; margin: 0 0 2px; }
+      p.lede { margin: 0 0 12px; color: var(--figma-color-text-secondary); }
       label { display: block; font-weight: 600; margin: 10px 0 4px; color: var(--figma-color-text-secondary); }
-      input, select, textarea, button {
+      textarea, button {
         font: inherit; color: inherit; width: 100%; box-sizing: border-box;
         border: 1px solid var(--figma-color-border); border-radius: 4px; padding: 6px 8px;
         background: var(--figma-color-bg-secondary);
       }
-      textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; min-height: 120px; resize: vertical; }
-      .row { display: flex; gap: 8px; }
-      .row > * { flex: 1; }
-      .styles { display: flex; gap: 8px; }
-      .styles label { flex: 1; margin: 0; font-weight: 500; display: flex; align-items: center; gap: 6px; cursor: pointer; }
-      .styles input { width: auto; }
-      .preview {
-        display: flex; align-items: center; justify-content: center; gap: 16px;
-        padding: 16px; margin-top: 12px; border: 1px dashed var(--figma-color-border); border-radius: 6px;
-        background: var(--figma-color-bg-secondary);
-      }
-      .preview svg { color: var(--figma-color-text); }
-      .preview .lg svg { width: 96px; height: 96px; }
-      .preview .sm svg { width: 24px; height: 24px; }
-      ul.checks { list-style: none; padding: 0; margin: 10px 0 0; }
-      ul.checks li { padding: 2px 0; display: flex; gap: 6px; }
-      ul.checks li.error { color: var(--figma-color-text-danger); }
-      ul.checks li.warning { color: var(--figma-color-text-warning); }
-      ul.checks li.ok { color: var(--figma-color-text-success); }
-      .actions { display: flex; gap: 8px; margin-top: 12px; }
+      textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; min-height: 90px; resize: vertical; }
+      .actions { display: flex; gap: 8px; margin-top: 10px; }
       button.primary { background: var(--figma-color-bg-brand); color: var(--figma-color-text-onbrand); border-color: transparent; font-weight: 600; }
       button:disabled { opacity: 0.5; cursor: not-allowed; }
-      details { margin-top: 12px; }
-      summary { cursor: pointer; color: var(--figma-color-text-secondary); font-weight: 600; }
       .muted { color: var(--figma-color-text-secondary); }
       .error-box { color: var(--figma-color-text-danger); margin-top: 8px; white-space: pre-wrap; }
+      .plan { margin-top: 12px; border-top: 1px solid var(--figma-color-border); padding-top: 10px; }
+      .counts { display: flex; gap: 12px; margin-bottom: 8px; }
+      .counts b { font-size: 14px; display: block; }
+      ul.changes { list-style: none; margin: 0; padding: 0; max-height: 190px; overflow: auto; }
+      ul.changes li { display: flex; justify-content: space-between; padding: 2px 0; }
+      .kind { font-size: 10px; }
+      .kind.new { color: var(--figma-color-text-success); }
+      .kind.changed { color: var(--figma-color-text-warning); }
+      .kind.deprecated { color: var(--figma-color-text-danger); }
+      .kind.unchanged { color: var(--figma-color-text-secondary); }
+      dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 0; }
+      dt { color: var(--figma-color-text-secondary); }
+      dd { margin: 0; }
+      section { border-top: 1px solid var(--figma-color-border); margin-top: 14px; padding-top: 10px; }
     </style>
   </head>
   <body>
     <h1>Icon Foundry</h1>
+    <p class="lede">Syncs a published set into this file. Icons are made in the studio, not here.</p>
 
-    <label for="description">Icon</label>
-    <input id="description" type="text" placeholder="temperature controlled warehouse" autofocus />
-
-    <div class="row">
-      <div>
-        <label for="language">Icon Language</label>
-        <select id="language"></select>
-      </div>
-      <div>
-        <label>Style</label>
-        <div class="styles">
-          <label><input type="radio" name="style" value="outline" checked /> Outline</label>
-          <label><input type="radio" name="style" value="filled" /> Filled</label>
-        </div>
-      </div>
-    </div>
-
+    <label for="payload">Paste the set from the studio</label>
+    <textarea id="payload" spellcheck="false" placeholder='Library → Copy for Figma'></textarea>
     <div class="actions">
-      <button id="generate" class="primary">Generate</button>
+      <button id="check">Check what would change</button>
     </div>
-
-    <div class="preview" id="preview"><span class="muted">Describe an icon and press Generate.</span></div>
-    <ul class="checks" id="checks"></ul>
     <div class="error-box" id="error"></div>
 
-    <details id="advanced">
-      <summary>IconSpec (editable)</summary>
-      <textarea id="spec" spellcheck="false"></textarea>
+    <div class="plan" id="plan" hidden>
+      <div class="counts" id="counts"></div>
+      <ul class="changes" id="changes"></ul>
       <div class="actions">
-        <button id="apply">Re-render from IconSpec</button>
+        <button id="sync" class="primary">Sync</button>
       </div>
-    </details>
+    </div>
+
+    <section>
+      <strong>Selected component</strong>
+      <div id="inspect" class="muted">Select an icon to see where it came from.</div>
+    </section>
 
     <div class="actions">
-      <button id="create" class="primary" disabled>Create Component</button>
       <button id="cancel">Close</button>
     </div>
 

@@ -8,6 +8,6 @@
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": ["none"],
-    "reasoning": "The core icon compiler runs fully offline inside the plugin."
+    "reasoning": "The plugin only reads a set pasted in from the studio. Nothing leaves the file."
   }
 }

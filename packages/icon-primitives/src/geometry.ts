@@ -30,12 +30,20 @@ export type PathCommand =
     }
   | { readonly c: "Z" };
 
-/** `fillable` tells the renderer whether the shape becomes a solid area in the
- * filled style. Strokes such as lines and open arcs are never fillable. */
+/**
+ * `fillable` tells the renderer whether the shape becomes a solid area in the
+ * filled style. Strokes such as lines and open arcs are never fillable.
+ *
+ * `cutout` marks a closed shape as a *hole* in that solid area rather than
+ * more of it. This is what keeps a filled warning's exclamation mark and a
+ * filled warehouse's door: without it, filling an icon erases everything
+ * inside its outline, which is exactly the detail that made it legible.
+ */
 export interface PathShape {
   readonly kind: "path";
   readonly commands: readonly PathCommand[];
   readonly fillable: boolean;
+  readonly cutout?: boolean;
 }
 export interface CircleShape {
   readonly kind: "circle";
@@ -43,6 +51,7 @@ export interface CircleShape {
   readonly cy: number;
   readonly r: number;
   readonly fillable: boolean;
+  readonly cutout?: boolean;
 }
 export interface RectShape {
   readonly kind: "rect";
@@ -52,6 +61,7 @@ export interface RectShape {
   readonly height: number;
   readonly rx: number;
   readonly fillable: boolean;
+  readonly cutout?: boolean;
 }
 export interface LineShape {
   readonly kind: "line";
@@ -60,12 +70,15 @@ export interface LineShape {
   readonly x2: number;
   readonly y2: number;
   readonly fillable: false;
+  /** A line encloses nothing, so it can never be a hole. */
+  readonly cutout?: false;
 }
 export interface PolylineShape {
   readonly kind: "polyline";
   readonly points: readonly Point[];
   readonly closed: boolean;
   readonly fillable: boolean;
+  readonly cutout?: boolean;
 }
 
 export type Shape = PathShape | CircleShape | RectShape | LineShape | PolylineShape;
@@ -88,6 +101,11 @@ export const circle = (cx: number, cy: number, r: number, fillable = true): Circ
   r,
   fillable,
 });
+
+/** The same shape, marked as a hole in the filled silhouette. */
+export function cutout<T extends Shape>(shape: T): T {
+  return { ...shape, fillable: true, cutout: true };
+}
 
 export const rect = (
   x: number,

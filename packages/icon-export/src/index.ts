@@ -1,0 +1,230 @@
+import type { IconRecord, Library } from "@icon-foundry/icon-library";
+import { renderSpecToSvg } from "@icon-foundry/icon-renderer";
+import { zip } from "./zip.js";
+
+export { zip } from "./zip.js";
+
+/**
+ * Shipping a set.
+ *
+ * A library of fifty icons that reaches a product one download at a time is
+ * not a system, it is a folder. Everything here turns a published set into
+ * something an engineer can consume in one step, and keeps the identities
+ * stable so the next release replaces it rather than colliding with it.
+ */
+
+export type ExportFormat = "svg" | "sprite" | "react" | "module" | "manifest" | "css";
+
+export const ALL_FORMATS: readonly ExportFormat[] = ["svg", "sprite", "react", "module", "manifest", "css"];
+
+/**
+ * What the Figma plugin consumes.
+ *
+ * The plugin cannot read the team's folder — it has no filesystem and no
+ * network — so the set travels as one payload the designer pastes in. Names and
+ * codepoints ride along, because syncing means updating what is already there,
+ * not creating a second copy of it.
+ */
+export interface FigmaPayload {
+  library: string;
+  name: string;
+  language: { id: string; name: string; version: string };
+  generatedAt: string;
+  icons: Array<{
+    name: string;
+    svg: string;
+    canvas: number;
+    style: string;
+    concept: string | null;
+    codepoint: string | null;
+    deprecated: boolean;
+    replacedBy: string | null;
+  }>;
+}
+
+/** Build the payload a designer pastes into the plugin. */
+export function figmaPayload(library: Library, options: ExportOptions = {}): FigmaPayload {
+  const languageId = options.languageId ?? library.manifest.language;
+  const language = library.getLanguage(languageId);
+  const registry = library.registry();
+  const statuses = options.statuses ?? ["published", "deprecated"];
+
+  return {
+    library: library.manifest.id,
+    name: library.manifest.name,
+    language: { id: language.id, name: language.name, version: language.version },
+    generatedAt: new Date().toISOString(),
+    icons: library
+      .iconsInLanguage(languageId)
+      .filter((r) => statuses.includes(r.status))
+      .sort((a, b) => a.spec.name.localeCompare(b.spec.name))
+      .map((record) => ({
+        name: record.spec.name,
+        svg: renderSpecToSvg(record.spec, language, { registry }),
+        canvas: record.spec.canvas,
+        style: record.spec.style ?? language.style.default,
+        concept: record.concept ?? null,
+        codepoint: record.codepoint !== undefined ? `U+${record.codepoint.toString(16).toUpperCase()}` : null,
+        deprecated: record.status === "deprecated",
+        replacedBy: record.replacedBy ?? null,
+      })),
+  };
+}
+
+export interface ExportOptions {
+  languageId?: string;
+  formats?: readonly ExportFormat[];
+  /** Statuses to ship. Published only, by default: a draft is not a release. */
+  statuses?: IconRecord["status"][];
+  /** Prefix for generated CSS classes and component names. */
+  prefix?: string;
+}
+
+const pascal = (name: string): string =>
+  name
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
+    .join("");
+
+/** Everything a set needs to be consumed, as path → file contents. */
+export function exportLibrary(library: Library, options: ExportOptions = {}): Record<string, string> {
+  const languageId = options.languageId ?? library.manifest.language;
+  const language = library.getLanguage(languageId);
+  const formats = new Set(options.formats ?? ALL_FORMATS);
+  const statuses = options.statuses ?? ["published"];
+  const prefix = options.prefix ?? "icon";
+  const registry = library.registry();
+
+  const icons = library
+    .iconsInLanguage(languageId)
+    .filter((r) => statuses.includes(r.status))
+    .map((record) => ({
+      record,
+      name: record.spec.name,
+      svg: renderSpecToSvg(record.spec, language, { registry }),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const files: Record<string, string> = {};
+  if (icons.length === 0) return files;
+
+  if (formats.has("svg")) {
+    for (const icon of icons) files[`svg/${icon.name}.svg`] = `${icon.svg}\n`;
+  }
+
+  if (formats.has("sprite")) {
+    const symbols = icons
+      .map((icon) => {
+        const body = icon.svg.replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
+        const attrs = icon.svg.match(/^<svg([^>]*)>/)?.[1] ?? "";
+        const inherited = attrs.match(/(viewBox|fill|stroke|stroke-width|stroke-linecap|stroke-linejoin)="[^"]*"/g) ?? [];
+        return `  <symbol id="${prefix}-${icon.name}" ${inherited.join(" ")}>${body}</symbol>`;
+      })
+      .join("\n");
+    files["sprite.svg"] = `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">\n${symbols}\n</svg>\n`;
+  }
+
+  if (formats.has("module")) {
+    const entries = icons.map((icon) => `  ${JSON.stringify(icon.name)}: ${JSON.stringify(icon.svg)},`).join("\n");
+    files["icons.ts"] = [
+      `// Generated by Icon Foundry from ${library.manifest.name}, ${language.name} v${language.version}.`,
+      "// Every icon inherits colour from `currentColor`.",
+      "",
+      "export const icons = {",
+      entries,
+      "} as const;",
+      "",
+      "export type IconName = keyof typeof icons;",
+      "",
+      "export const iconNames = Object.keys(icons) as IconName[];",
+      "",
+    ].join("\n");
+  }
+
+  if (formats.has("react")) {
+    const components = icons
+      .map((icon) => {
+        const body = icon.svg
+          .replace(/^<svg[^>]*>/, "")
+          .replace(/<\/svg>$/, "")
+          .replace(/stroke-width=/g, "strokeWidth=")
+          .replace(/stroke-linecap=/g, "strokeLinecap=")
+          .replace(/stroke-linejoin=/g, "strokeLinejoin=");
+        const attrs = icon.svg.match(/viewBox="([^"]*)"/)?.[1] ?? `0 0 ${icon.record.spec.canvas} ${icon.record.spec.canvas}`;
+        return [
+          `export function ${pascal(icon.name)}(props: IconProps) {`,
+          `  return (`,
+          `    <svg viewBox="${attrs}" width="${icon.record.spec.canvas}" height="${icon.record.spec.canvas}" fill="none" stroke="currentColor" strokeWidth="${language.sizes[icon.record.spec.canvas]?.stroke.width ?? language.stroke.width}" strokeLinecap="${language.stroke.cap}" strokeLinejoin="${language.stroke.join}" {...props}>${body}</svg>`,
+          `  );`,
+          `}`,
+        ].join("\n");
+      })
+      .join("\n\n");
+    files["icons.tsx"] = [
+      `// Generated by Icon Foundry from ${library.manifest.name}, ${language.name} v${language.version}.`,
+      "",
+      `import type { SVGProps } from "react";`,
+      "",
+      "export type IconProps = SVGProps<SVGSVGElement>;",
+      "",
+      components,
+      "",
+    ].join("\n");
+  }
+
+  if (formats.has("css")) {
+    const rules = icons
+      .map((icon) => {
+        const data = encodeURIComponent(icon.svg.replace(/currentColor/g, "black")).replace(/'/g, "%27");
+        return `.${prefix}-${icon.name} { --${prefix}-src: url("data:image/svg+xml,${data}"); }`;
+      })
+      .join("\n");
+    files["icons.css"] = [
+      `/* Generated by Icon Foundry from ${library.manifest.name}. */`,
+      `/* Masks take their colour from the element, so \`color\` still works. */`,
+      `[class^="${prefix}-"], [class*=" ${prefix}-"] {`,
+      "  display: inline-block;",
+      `  width: ${language.defaultCanvas}px;`,
+      `  height: ${language.defaultCanvas}px;`,
+      "  background-color: currentColor;",
+      `  -webkit-mask: var(--${prefix}-src) no-repeat center / contain;`,
+      `  mask: var(--${prefix}-src) no-repeat center / contain;`,
+      "}",
+      "",
+      rules,
+      "",
+    ].join("\n");
+  }
+
+  if (formats.has("manifest")) {
+    files["icons.json"] = `${JSON.stringify(
+      {
+        library: library.manifest.id,
+        name: library.manifest.name,
+        language: { id: language.id, name: language.name, version: language.version },
+        generatedAt: new Date().toISOString(),
+        icons: icons.map(({ record }) => ({
+          name: record.spec.name,
+          concept: record.concept ?? null,
+          // Reserved so a later font release can keep every reference working.
+          codepoint: record.codepoint !== undefined ? `U+${record.codepoint.toString(16).toUpperCase()}` : null,
+          canvas: record.spec.canvas,
+          style: record.spec.style ?? language.style.default,
+          tags: record.tags,
+          deprecated: record.status === "deprecated",
+          replacedBy: record.replacedBy ?? null,
+        })),
+      },
+      null,
+      2,
+    )}\n`;
+  }
+
+  return files;
+}
+
+/** The same export, packed into a single archive. */
+export function exportArchive(library: Library, options: ExportOptions = {}): Uint8Array {
+  return zip(exportLibrary(library, options));
+}

@@ -12,7 +12,6 @@
     "grid",
     "safeArea",
     "stroke",
-    "cornerRadius",
     "style"
   ],
   "additionalProperties": false,
@@ -49,14 +48,14 @@
     "stroke": {
       "$ref": "#/$defs/stroke",
       "required": [
-        "width",
-        "cap",
-        "join"
-      ]
+        "width"
+      ],
+      "description": "Cap and join may be omitted: absent means derived from the personality axes. Width has no derivation, so it must be stated."
     },
     "cornerRadius": {
       "type": "number",
-      "minimum": 0
+      "minimum": 0,
+      "description": "Omit to derive from the personality axes. Present means an override that wins."
     },
     "style": {
       "type": "object",
@@ -114,6 +113,9 @@
     "optical": {
       "$ref": "#/$defs/optical"
     },
+    "optics": {
+      "$ref": "#/$defs/optics"
+    },
     "sizes": {
       "type": "array",
       "description": "Additional optical sizes. Unspecified fields inherit from the default size.",
@@ -152,6 +154,10 @@
           },
           "optical": {
             "$ref": "#/$defs/optical"
+          },
+          "optics": {
+            "$ref": "#/$defs/optics",
+            "description": "Overrides for this size. Absent, the notch scales with the canvas and the ratios carry over unchanged."
           }
         }
       }
@@ -161,6 +167,20 @@
     },
     "grammar": {
       "$ref": "#/$defs/grammar"
+    },
+    "construction": {
+      "$ref": "#/$defs/construction"
+    },
+    "derivation": {
+      "$ref": "#/$defs/derivation"
+    },
+    "preferences": {
+      "type": "object",
+      "description": "Weight per scored preference, by rule id (restraint, balance, symmetry, silhouette, breathing). Absent means 1; 0 turns one off. Which preferences matter is taste, and taste is the team's.",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
     }
   },
   "$defs": {
@@ -259,7 +279,7 @@
         },
         "axes": {
           "type": "object",
-          "description": "0\u2013100 between named poles: geometric (organic\u2192geometric), minimal (expressive\u2192minimal), technical (friendly\u2192technical), literal (abstract\u2192literal).",
+          "description": "0–100 between named poles: geometric (organic→geometric), minimal (expressive→minimal), technical (friendly→technical), literal (abstract→literal).",
           "additionalProperties": false,
           "properties": {
             "geometric": {
@@ -328,7 +348,7 @@
             "minimum": 0,
             "exclusiveMaximum": 180
           },
-          "description": "Allowed straight-line angles, measured 0\u2013180. Empty means any angle."
+          "description": "Allowed straight-line angles, measured 0–180. Empty means any angle."
         },
         "angleTolerance": {
           "type": "number",
@@ -363,8 +383,223 @@
             }
           }
         },
+        "arrangements": {
+          "type": "object",
+          "description": "How this set draws each way of relating parts. A concept asking for an arrangement this set does not allow is refused.",
+          "additionalProperties": false,
+          "properties": {
+            "allowed": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "single",
+                  "badge",
+                  "stack",
+                  "row",
+                  "contain"
+                ]
+              },
+              "minItems": 1
+            },
+            "spacing": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Gap between units in a stack or a row, in units at the primary size. 0 means use the language's minimum gap."
+            }
+          }
+        },
         "silhouette": {
           "type": "boolean"
+        }
+      }
+    },
+    "optics": {
+      "type": "object",
+      "description": "Optical corrections, applied at render and never at validation. Every one is off by default: a correction changes icons that are already published, so opting in has to be a decision somebody made.",
+      "additionalProperties": false,
+      "properties": {
+        "junctionNotch": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Trim a stroke end back from a junction it meets at an acute angle, in units at this optical size. 0 disables the pass."
+        },
+        "junctionAngle": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 90,
+          "description": "At or below this angle, in degrees, a junction counts as acute. Default 45."
+        },
+        "interiorThin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.9,
+          "description": "Fraction by which to thin a stroke drawing detail inside another shape of the same element, so the outer contour stays the heavier line. 0 disables the pass."
+        },
+        "dotRatio": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Drawn diameter of a dot, as a multiple of stroke width. 0 disables the pass."
+        }
+      }
+    },
+    "axisEndpoints": {
+      "type": "object",
+      "description": "What one personality axis moves, and the token value at each of its two poles. The axis position interpolates between them, the way a variable font interpolates a weight axis.",
+      "additionalProperties": false,
+      "properties": {
+        "cornerRadius": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[value at 0, value at 100], as a fraction of the canvas."
+        },
+        "maxElements": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "maxShapes": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "badgeRatio": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "exclusiveMaximum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "strokeCap": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "butt",
+              "round",
+              "square"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "strokeJoin": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "miter",
+              "round",
+              "bevel"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "derivation": {
+      "type": "object",
+      "description": "What each personality axis moves, and to what value at each pole. Editing this is how a team says what \"minimal\" means for their set rather than inheriting ours. Where two axes move the same token, the proposal is the mean of their contributions.",
+      "additionalProperties": false,
+      "properties": {
+        "geometric": {
+          "$ref": "#/$defs/axisEndpoints"
+        },
+        "minimal": {
+          "$ref": "#/$defs/axisEndpoints"
+        },
+        "technical": {
+          "$ref": "#/$defs/axisEndpoints"
+        },
+        "literal": {
+          "$ref": "#/$defs/axisEndpoints"
+        }
+      }
+    },
+    "construction": {
+      "type": "object",
+      "description": "How a part is built, as opposed to how big or how heavy it is. A trait is a named decision that several primitives consume, so setting one changes every primitive that declared it and nothing else. Traits are ratios, so unlike the size tokens they do not vary per optical size. Omit one to derive it from the personality axes.",
+      "additionalProperties": false,
+      "properties": {
+        "interiorRadius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "How much of the exterior corner radius an interior corner takes. 0 is square and is the default, which is what Google and IBM both specify; 1 follows the silhouette, which is what Material's Rounded family does."
+        },
+        "grade": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1,
+          "description": "Thickness offset applied only on a dark ground, as a fraction of stroke width. Negative thins. A light shape on a dark ground reads heavier than the same shape inverted; Material Symbols ships the GRAD axis for exactly this."
+        },
+        "aperture": {
+          "enum": [
+            "mixed",
+            "line",
+            "outline",
+            "notch"
+          ],
+          "description": "How an opening is drawn. \"mixed\" is not a style but an unmade decision: each part keeps the answer it was drawn with, which is what preserves a set that currently answers the question more than one way."
+        },
+        "inset": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 3,
+          "description": "Multiplier on how far interior detail sits from the contour it is inside. 1 leaves each part as drawn."
+        },
+        "accentSize": {
+          "type": "number",
+          "minimum": 0.3,
+          "maximum": 2.5,
+          "description": "Multiplier on the signature round part: a head, a wheel, the dot of a pin. 1 leaves each part as drawn."
+        },
+        "slope": {
+          "enum": [
+            "mixed",
+            "shallow",
+            "iso",
+            "45"
+          ],
+          "description": "The pitch of a sloping or receding plane. \"mixed\" keeps each part as drawn."
+        },
+        "exceptions": {
+          "type": "object",
+          "description": "Per-part departures from the traits above, keyed by primitive name. Allowed, because forbidding what you cannot fully judge gets worked around in worse ways. Never silent: a reason is required, and the set-level audit counts them. One is a judgement; several on one trait means the language value is wrong.",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "set",
+              "why"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "set": {
+                "type": "object",
+                "minProperties": 1,
+                "description": "Traits this part departs on. Anything absent still follows the language."
+              },
+              "why": {
+                "type": "string",
+                "minLength": 3,
+                "description": "What was seen that the language value got wrong. Required: an exception without a reason is drift with a nicer name."
+              }
+            }
+          }
         }
       }
     }

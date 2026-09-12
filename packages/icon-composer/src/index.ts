@@ -1,7 +1,9 @@
 import {
+  constructionFor,
   hasSize,
   nearestTokens,
   resolveTokens,
+  type Construction,
   type IconLanguage,
   type IconStyle,
   type SizeTokens,
@@ -60,6 +62,8 @@ export interface ComposedIcon {
   style: IconStyle;
   /** Tokens of the optical size the icon was composed with. */
   tokens: SizeTokens;
+  /** How this language builds a part. Carried so the renderer can compensate. */
+  construction: Construction;
   shapes: ComposedShape[];
   /** Number of leaf (primitive or path) elements in the spec. */
   elementCount: number;
@@ -168,6 +172,7 @@ function composeElement(
   source: string,
   inherited: Inherited,
   tokens: SizeTokens,
+  construction: Construction,
   registry: PrimitiveRegistry,
   out: ComposedShape[],
   virtualCanvas: number,
@@ -182,7 +187,7 @@ function composeElement(
     const local: ComposedShape[] = [];
     let count = 0;
     el.children.forEach((child, i) => {
-      count += composeElement(child, `${source}.children[${i}]`, next, tokens, registry, local, groupCanvas);
+      count += composeElement(child, `${source}.children[${i}]`, next, tokens, construction, registry, local, groupCanvas);
     });
     const m = placementMatrix(el, { width: groupCanvas, height: groupCanvas });
     for (const item of local) out.push({ ...item, shape: transformShape(item.shape, m) });
@@ -209,6 +214,9 @@ function composeElement(
     strokeWidth: stroke.width,
     cornerRadius: tokens.cornerRadius,
     scale: s,
+    // Each part sees the language, then its own exception if it has one. The
+    // substitution happens here so no primitive has to know exceptions exist.
+    construction: constructionFor(construction, primitive.name),
   });
   const m = placementMatrix(el, primitive.box);
   for (const shape of shapes) {
@@ -244,7 +252,7 @@ export function compose(spec: IconSpec, language: IconLanguage, options: Compose
   const shapes: ComposedShape[] = [];
   let elementCount = 0;
   spec.elements.forEach((el, i) => {
-    elementCount += composeElement(el, `elements[${i}]`, inherited, tokens, registry, shapes, spec.canvas);
+    elementCount += composeElement(el, `elements[${i}]`, inherited, tokens, language.construction, registry, shapes, spec.canvas);
   });
 
   return {
@@ -253,6 +261,7 @@ export function compose(spec: IconSpec, language: IconLanguage, options: Compose
     canvas: spec.canvas,
     style,
     tokens,
+    construction: language.construction,
     shapes,
     elementCount,
   };
@@ -268,3 +277,11 @@ export function topLevelIndex(source: string): number {
 export function composedBounds(icon: ComposedIcon): Bounds {
   return unionBounds(icon.shapes.map((s) => shapeBounds(s.shape)));
 }
+
+export {
+  applyOptics,
+  opticsEnabled,
+  type OpticalCorrection,
+  type OpticalPass,
+  type OpticallyCorrected,
+} from "./optics.js";

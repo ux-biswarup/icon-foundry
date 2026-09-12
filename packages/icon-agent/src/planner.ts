@@ -1,4 +1,4 @@
-import { intentToSpec, parseIntentKeywords } from "@icon-foundry/icon-ai";
+import { composeConcept, intentToSpec, parseIntentKeywords, slugify } from "@icon-foundry/icon-ai";
 import type { IconStyle } from "@icon-foundry/icon-language";
 import type { IconSpec } from "@icon-foundry/icon-spec";
 import type { Session } from "./session.js";
@@ -18,6 +18,38 @@ export class NoVocabularyError extends Error {
  */
 export function plan(brief: Brief, session: Session): Candidate[] {
   const language = session.language;
+
+  // A known concept needs no keyword guessing: it already says what it is made
+  // of, and the language already knows how to draw that.
+  const concept = session.library.resolveConcept(brief.text);
+  if (concept?.composition) {
+    const out: Candidate[] = [];
+    const styles: IconStyle[] = brief.style
+      ? [brief.style]
+      : [language.style.default, ...language.style.allowed.filter((s) => s !== language.style.default)];
+    for (const style of styles.slice(0, 2)) {
+      try {
+        const spec = composeConcept(concept.composition, language, {
+          name: slugify(style === language.style.default ? concept.id : `${concept.id}-${style}`),
+          registry: session.registry,
+          style,
+          ...(brief.canvas !== undefined && { canvas: brief.canvas }),
+          meta: { concept: concept.id },
+        });
+        out.push(
+          session.addCandidate(
+            spec,
+            `${concept.name}, built from its recorded parts and fitted by the language${style === language.style.default ? "" : ` in the ${style} style`}.`,
+            concept.id,
+          ),
+        );
+      } catch {
+        // A composition the language refuses simply yields no candidate here.
+      }
+    }
+    if (out.length > 0) return out;
+  }
+
   let intent;
   try {
     intent = parseIntentKeywords(brief.text, { registry: session.registry });

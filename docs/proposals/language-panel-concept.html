@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Icon Foundry — properties panel concept</title>
+<!--
+  CONCEPT v2, NOT THE IMPLEMENTATION. Open in a browser; no build step.
+
+  v1 (language-page-concept.html) settled the layout: three columns, sorted by
+  whether a thing changes the drawing. This one only rethinks the right column,
+  which had become a document pretending to be a control surface — six traits
+  carrying two lines of prose each, a consumer list and an axis breakdown, about
+  sixty rows to hold six decisions.
+
+  The rule applied here: scope and provenance become glyphs, justification moves
+  to hover, and the prose comes back only when asked for.
+
+  What is kept from Figma's properties panel: dense fixed-height rows, labels you
+  can drag to sweep a value, icon segmented controls instead of words, a binding
+  dot for derived-versus-typed with the reset revealed on hover, collapsible
+  sections, and a real "Mixed" value.
+
+  What is deliberately NOT kept: Figma's panel edits your selection, so you always
+  know what you are changing. This one edits everything that declared a trait,
+  which is the whole feature and the thing most likely to surprise you. Hence the
+  scope badge on every row, loud on purpose, and the canvas dimming everything a
+  row cannot reach the moment you touch it.
+-->
+<style>
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --bg: #fff; --bg-2: #f5f5f4; --bg-3: #e9e9e7;
+  --fg: #1a1a1a; --fg-2: #6b6b6b; --fg-3: #9a9a98;
+  --line: #ddd; --accent: #1a1a1a; --accent-fg: #fff;
+  --ok: #2f7d4f; --warn: #a86a00; --err: #c0392b;
+  --bind: #7c5cff;
+  --note-bg: #fff8e6; --note-line: #f0e0b8; --note-fg: #6b4e00;
+  --radius: 8px; --row: 26px;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", system-ui, sans-serif;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #161616; --bg-2: #1f1f1f; --bg-3: #2a2a2a;
+  --fg: #ececec; --fg-2: #9a9a9a; --fg-3: #6e6e6e;
+  --line: #333; --accent: #ececec; --accent-fg: #161616;
+  --ok: #5fbf85; --warn: #e0a233; --err: #ef6b5f;
+  --bind: #a48bff;
+  --note-bg: #2a2410; --note-line: #4a3f1a; --note-fg: #e0c98a;
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    color-scheme: dark;
+    --bg: #161616; --bg-2: #1f1f1f; --bg-3: #2a2a2a;
+    --fg: #ececec; --fg-2: #9a9a9a; --fg-3: #6e6e6e;
+    --line: #333; --accent: #ececec; --accent-fg: #161616;
+    --ok: #5fbf85; --warn: #e0a233; --err: #ef6b5f;
+    --bind: #a48bff;
+    --note-bg: #2a2410; --note-line: #4a3f1a; --note-fg: #e0c98a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+nav {
+  display: flex; align-items: center; gap: 18px; padding: 0 16px; height: 46px;
+  border-bottom: 1px solid var(--line); background: var(--bg);
+}
+nav .brand { font-weight: 600; }
+nav a { color: var(--fg-2); text-decoration: none; font-size: 13px; }
+nav a.on { color: var(--fg); font-weight: 600; box-shadow: inset 0 -2px 0 var(--fg); }
+nav .spacer { flex: 1; }
+nav .source { font-size: 12px; color: var(--fg-2); }
+.concept-note { background: var(--note-bg); border-bottom: 1px solid var(--note-line); color: var(--note-fg); font-size: 12px; padding: 6px 16px; }
+
+.page { display: grid; grid-template-columns: 250px minmax(0, 1fr) 268px; height: calc(100vh - 46px - 29px - 42px); }
+.col { overflow-y: auto; overflow-x: hidden; }
+.col.left { border-right: 1px solid var(--line); padding: 14px; }
+.col.mid { padding: 14px 18px; }
+.col.right { border-left: 1px solid var(--line); }
+.col-head { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2); font-weight: 600; margin: 0 0 2px; }
+.col-sub { font-size: 12px; color: var(--fg-2); margin: 0 0 14px; }
+
+/* ---------- left ---------- */
+details.block { border-bottom: 1px solid var(--line); padding: 8px 0; }
+details.block > summary { cursor: pointer; font-size: 12px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+details.block > summary::-webkit-details-marker { display: none; }
+details.block > summary::after { content: "+"; color: var(--fg-2); font-weight: 400; }
+details.block[open] > summary::after { content: "\2013"; }
+details.block .body { padding: 7px 0 3px; font-size: 12px; color: var(--fg-2); }
+details.block input[type=text], details.block textarea { width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); font-size: 12px; }
+details.block ul { margin: 4px 0; padding-left: 15px; }
+.tag { display: inline-block; background: var(--bg-3); border-radius: 4px; padding: 1px 6px; font-size: 11px; margin: 0 3px 3px 0; }
+.tag.no { color: var(--err); text-decoration: line-through; }
+.rule-count { font-size: 11px; color: var(--fg-2); padding-top: 10px; line-height: 1.7; }
+.rule-count b { color: var(--fg); }
+
+/* ---------- middle ---------- */
+.canvas-bar { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 2px 10px; font-size: 12px; cursor: pointer; color: var(--fg-2); }
+.chip.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.canvas-bar .spacer { flex: 1; }
+.scope-note { font-size: 12px; color: var(--note-fg); background: var(--note-bg); border: 1px solid var(--note-line); border-radius: 6px; padding: 5px 10px; margin-bottom: 10px; }
+.sheet-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2); font-weight: 600; margin: 18px 0 7px; }
+.sheet-title span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--part-size, 32px) * 2 + 44px), 1fr)); gap: 4px; }
+.cell { border: 1px solid transparent; border-radius: var(--radius); padding: 7px 4px 5px; text-align: center; cursor: pointer; position: relative; transition: opacity .12s; }
+.cell:hover { border-color: var(--line); }
+.cell.sel { border-color: var(--accent); background: var(--bg-2); }
+.cell.dim { opacity: .14; pointer-events: none; }
+.cell .nm { font-size: 11px; color: var(--fg-2); margin-top: 5px; word-break: break-word; }
+.cell .flag { position: absolute; top: 5px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.cell .draft { position: absolute; top: 4px; left: 6px; font-size: 9px; text-transform: uppercase; letter-spacing: .04em; color: var(--warn); font-weight: 700; }
+.duo { display: flex; gap: 3px; justify-content: center; }
+.duo > span { display: block; border-radius: 5px; padding: 4px 5px; flex: none; }
+.duo .on-light { background: #fff; color: #1a1a1a; border: 1px solid #e2e2e2; }
+.duo .on-dark { background: #161616; color: #ececec; border: 1px solid #3a3a3a; }
+.cell svg { display: block; }
+
+/* ================================================================== */
+/* The properties panel                                                */
+/* ================================================================== */
+
+.pp { font-size: 11px; }
+.pp-sec { border-bottom: 1px solid var(--line); }
+.pp-head {
+  display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
+  cursor: pointer; user-select: none;
+}
+.pp-head h3 {
+  margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--fg-2); flex: 1;
+}
+.pp-head .caret { color: var(--fg-3); transition: transform .12s; }
+.pp-sec.shut .caret { transform: rotate(-90deg); }
+.pp-sec.shut .pp-body { display: none; }
+.pp-head .count { font-size: 10px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.pp-body { padding: 2px 10px 9px; }
+
+/* A row: binding dot, label, control, scope. Fixed height, like Figma's. */
+.pp-row { display: flex; align-items: center; gap: 6px; min-height: var(--row); }
+.pp-row.two > .pp-ctrl { flex: 1 1 0; min-width: 0; }
+.pp-row:hover { background: var(--bg-2); margin: 0 -10px; padding: 0 10px; border-radius: 5px; }
+
+/* Provenance. Hollow = the axes proposed it. Filled = you typed it. */
+.pp-bind {
+  flex: none; width: 12px; height: 12px; border: 0; background: none; padding: 0;
+  cursor: pointer; display: grid; place-items: center; color: var(--fg-3);
+}
+.pp-bind i { display: block; width: 6px; height: 6px; transform: rotate(45deg); border: 1.2px solid currentColor; }
+.pp-bind.manual { color: var(--bind); }
+.pp-bind.manual i { background: currentColor; }
+.pp-bind.none { visibility: hidden; }
+
+/* Drag the label to sweep the value, which is what you actually want when you
+ * are looking for a feel rather than a number. */
+.pp-label {
+  flex: 0 0 var(--label-w, 74px); color: var(--fg-2); cursor: ew-resize;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none;
+}
+.pp-label.plain { cursor: default; }
+.pp-label:hover { color: var(--fg); }
+
+.pp-ctrl { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.pp-num {
+  width: 100%; min-width: 0; height: 22px; padding: 0 5px; font-size: 11px;
+  border: 1px solid transparent; border-radius: 4px; background: var(--bg-2);
+  font-variant-numeric: tabular-nums; -moz-appearance: textfield;
+}
+.pp-num::-webkit-outer-spin-button, .pp-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.pp-num:hover { border-color: var(--line); }
+.pp-num:focus { border-color: var(--accent); outline: none; background: var(--bg); }
+
+/* Icon segmented control. The glyph is the definition. */
+.pp-seg { display: flex; gap: 2px; background: var(--bg-2); border-radius: 4px; padding: 2px; }
+.pp-seg button {
+  flex: 1; height: 18px; border: 0; background: none; border-radius: 3px;
+  cursor: pointer; display: grid; place-items: center; color: var(--fg-2); padding: 0;
+}
+.pp-seg button:hover { background: var(--bg-3); }
+.pp-seg button.on { background: var(--bg); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.16); }
+.pp-seg svg { display: block; }
+.pp-mixed {
+  flex: none; font-size: 9.5px; color: var(--warn); background: var(--note-bg);
+  border: 1px solid var(--note-line); border-radius: 3px; padding: 0 4px; cursor: help;
+}
+
+/* How many parts this row moves. Loud on purpose: unlike Figma, this panel is
+ * not editing your selection. */
+.pp-scope {
+  flex: none; min-width: 20px; height: 16px; padding: 0 5px; border: 0; cursor: pointer;
+  border-radius: 8px; background: var(--bg-3); color: var(--fg-2);
+  font-size: 10px; font-variant-numeric: tabular-nums; display: grid; place-items: center;
+}
+.pp-row:hover .pp-scope { background: var(--accent); color: var(--accent-fg); }
+.pp-scope.none { background: none; color: var(--fg-3); cursor: default; }
+/* Fewer than three consumers and it is not a language decision at all. The
+ * rule is enforced by a test in the real build; showing it here means the
+ * panel teaches it rather than the error message doing so later. */
+.pp-scope.thin { background: var(--note-bg); color: var(--warn); box-shadow: inset 0 0 0 1px var(--note-line); }
+.pp-row:hover .pp-scope.thin { background: var(--warn); color: var(--bg); box-shadow: none; }
+
+.pp-reset { flex: none; opacity: 0; border: 0; background: none; color: var(--fg-3); cursor: pointer; font-size: 11px; padding: 0 2px; }
+.pp-row:hover .pp-reset { opacity: 1; }
+
+/* Axis sliders, still dense. */
+.pp-axis { display: flex; align-items: center; gap: 6px; min-height: var(--row); }
+.pp-axis .pole { flex: 0 0 52px; color: var(--fg-3); font-size: 10px; text-align: right; }
+.pp-axis .pole.hi { text-align: left; }
+.pp-axis input[type=range] { flex: 1; min-width: 0; height: 14px; }
+.pp-axis .val { flex: none; width: 20px; text-align: right; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.pp-axis.lit { background: var(--bg-2); margin: 0 -10px; padding: 0 10px; border-radius: 5px; }
+
+/* Learning mode: the writing we took out, given back on request. */
+.pp-why { color: var(--fg-3); font-size: 10.5px; line-height: 1.45; margin: 0 0 7px 18px; }
+.pp-learn { border: 1px solid var(--line); background: var(--bg); border-radius: 4px; color: var(--fg-2); font-size: 10px; padding: 1px 6px; cursor: pointer; }
+.pp-learn.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.pp-attested { color: var(--ok); font-size: 10px; }
+
+.pp-foot { padding: 8px 10px; color: var(--fg-3); font-size: 10.5px; }
+.pp-ask { padding: 8px 10px 10px; border-bottom: 1px solid var(--line); }
+.pp-ask textarea { width: 100%; border: 1px solid var(--line); border-radius: 5px; padding: 5px 6px; font-size: 11px; background: var(--bg); resize: vertical; }
+.pp-ask .row { display: flex; gap: 5px; margin-top: 5px; }
+.pp-btn { border: 1px solid var(--line); background: var(--bg); border-radius: 5px; font-size: 11px; padding: 3px 9px; cursor: pointer; }
+.pp-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+footer.bar { position: fixed; left: 0; right: 0; bottom: 0; height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 16px; background: var(--bg); border-top: 1px solid var(--line); font-size: 12px; }
+footer.bar .spacer { flex: 1; }
+.exceptions-pill { color: var(--warn); font-size: 11px; }
+.theme-seg { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.theme-seg button { border: 0; background: none; color: var(--fg-2); font-size: 11px; padding: 3px 9px; cursor: pointer; }
+.theme-seg button.on { background: var(--accent); color: var(--accent-fg); }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="brand">⬡ Icon Foundry</span>
+  <a href="#">Library</a><a href="#">Create</a><a href="#" class="on">Language</a>
+  <span class="spacer"></span>
+  <span class="source">📁 acme-icons · Acme Icons</span>
+  <div class="theme-seg" id="themeSeg">
+    <button data-t="light">Light</button><button data-t="dark">Dark</button><button data-t="system">System</button>
+  </div>
+</nav>
+<div class="concept-note">
+  <b>Concept v2 · the right column only.</b> Scope and provenance are glyphs, the writing is behind <b>Learn</b>, and
+  a label can be dragged to sweep its value. Compare with <code>language-page-concept.html</code>.
+</div>
+
+<div class="page">
+  <div class="col left">
+    <p class="col-head">The language</p>
+    <p class="col-sub">What it is and what it stands for. None of this changes the drawing.</p>
+    <details class="block" open><summary>Identity</summary><div class="body">
+      <input type="text" value="Acme Icons" style="margin-bottom:5px">
+      <textarea rows="2">Icons for a logistics tool someone uses all day.</textarea>
+    </div></details>
+    <details class="block"><summary>Purpose</summary><div class="body">
+      <textarea rows="3">They should be read, not noticed. A person scanning forty rows should never stop on one.</textarea>
+    </div></details>
+    <details class="block"><summary>Principles <span style="color:var(--fg-2);font-weight:400">8</span></summary><div class="body"><ul>
+      <li>Keep the natural proportions of real objects.</li>
+      <li>Closer to a technical drawing than an illustration.</li>
+      <li>Detail is a budget. If it disappears at 16px, do not draw it.</li>
+      <li style="color:var(--fg-3)">…and 5 more</li></ul></div></details>
+    <details class="block"><summary>Metaphors</summary><div class="body">
+      <div style="margin-bottom:5px"><span class="tag">containers</span><span class="tag">arrows</span><span class="tag">badges</span></div>
+      <div><span class="tag no">faces</span><span class="tag no">fake depth</span></div>
+    </div></details>
+    <details class="block"><summary>Preferences</summary><div class="body">Restraint ×1.5 · Balance ×1 · Symmetry off · Silhouette ×1.25 · Breathing ×1</div></details>
+    <details class="block"><summary>Left to a person</summary><div class="body"><ul>
+      <li>Does this belong among its neighbours?</li>
+      <li>Would someone know what it means with no label?</li>
+      <li>Does it match the purpose, not just the rules?</li></ul></div></details>
+    <details class="block"><summary>Versions</summary><div class="body">v0.3.0 current · v0.2.0 softened the corners · v0.1.0 from Technical</div></details>
+    <p class="rule-count"><b>13</b> rules are enforced.<br><b>5</b> are scored.<br><b>3</b> are left to you.</p>
+  </div>
+
+  <div class="col mid">
+    <div class="canvas-bar">
+      <span class="chip" data-size="16">16px</span>
+      <span class="chip on" data-size="24">24px</span>
+      <span class="spacer"></span>
+      <span class="chip on" id="duoToggle">Compare light and dark</span>
+    </div>
+    <div class="scope-note" id="scopeNote" style="display:none"></div>
+    <div class="sheet-title">Built in <span>· every part your icons are made of</span></div>
+    <div class="sheet" id="sheet"></div>
+    <div class="sheet-title">Your elements <span>· 2 drafts waiting on you</span></div>
+    <div class="sheet" id="customSheet"></div>
+    <div class="sheet-title">Icons made from them <span>· the parts are the mechanism, these are what ships</span></div>
+    <div class="sheet" id="composedSheet"></div>
+  </div>
+
+  <div class="col right"><div class="pp" id="pp"></div></div>
+</div>
+
+<footer class="bar">
+  <span class="exceptions-pill" id="excPill"></span>
+  <span class="spacer"></span>
+  <span style="color:var(--fg-2)">Unsaved changes</span>
+  <button class="pp-btn">Discard</button>
+  <button class="pp-btn primary">Review and save</button>
+</footer>
+<script>
+/* ==========================================================================
+   Model. Unchanged from v1 apart from the labels, which are now short enough
+   to sit in a 74px column: the writing moved to `why`, shown only on request.
+   ========================================================================== */
+
+const AXES = [
+  { id: "geometric", lo: "organic",    hi: "geometric" },
+  { id: "minimal",   lo: "expressive", hi: "minimal"   },
+  { id: "technical", lo: "friendly",   hi: "technical" },
+  { id: "literal",   lo: "abstract",   hi: "literal"   },
+];
+
+const DERIVATION = {
+  geometric: { cornerRadius: [3.6, 0.8] },
+  technical: { cornerRadius: [3.2, 1.0], arrowhead: ["open", "closed"], slope: ["45", "iso"] },
+  minimal:   { detailRows: [3, 2], aperture: ["rect", "line"], inset: [0.2, 0.1] },
+  literal:   { detailRows: [2, 3], accentSize: [0.8, 1.15] },
+};
+
+/** Glyphs, at 14×14, so an option explains itself without a word. */
+const G = {
+  line:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="2.5" width="9" height="9" rx="1"/><path d="M4.5 8.5h5"/></svg>',
+  rect:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="2.5" width="9" height="9" rx="1"/><rect x="5" y="5" width="4" height="4"/></svg>',
+  notch:  '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="2.5" width="9" height="9" rx="1"/><path d="M5 11.5V6h4v5.5"/></svg>',
+  s45:    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 11.5h10M2.5 11L7 3l4.5 8"/></svg>',
+  siso:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 11.5h10M2.5 11L7 6l4.5 5"/></svg>',
+  sshal:  '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 11.5h10M2.5 11L7 8.5l4.5 2.5"/></svg>',
+  open:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 7h9M7.5 3.5L11 7l-3.5 3.5"/></svg>',
+  closed: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 7h6"/><path d="M8 3.5L11.5 7 8 10.5z" fill="currentColor"/></svg>',
+  chev:   '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 7h7M8 4.5L10.5 7 8 9.5"/></svg>',
+};
+
+const TRAITS = [
+  { id: "cornerRadius", label: "Radius", kind: "range", min: 0, max: 4, step: 0.1,
+    why: "How a corner on the silhouette is turned. Nothing narrower than one stroke rounds at all.",
+    attested: true, affects: ["building","device","rounded-rect","vehicle","warehouse","warning"] },
+  { id: "aperture", label: "Openings", kind: "enum",
+    why: "How an opening is drawn. Mixed is not a style but an unmade decision: your parts answer this three ways and each keeps its own.",
+    options: [["line", G.line, "A single line"], ["rect", G.rect, "A closed shape"], ["notch", G.notch, "An open notch"]],
+    affects: ["building","warehouse","device"] },
+  { id: "inset", label: "Inset", kind: "range", min: 0.05, max: 0.28, step: 0.01,
+    why: "How far interior detail sits from the contour it is inside.",
+    affects: ["building","device","warehouse"] },
+  { id: "accentSize", label: "Accent", kind: "range", min: 0.6, max: 1.8, step: 0.05,
+    why: "The signature round part: a head, a wheel, the dot of a pin.",
+    affects: ["person","vehicle","location","warning","thermometer"] },
+  { id: "slope", label: "Slope", kind: "enum",
+    why: "The pitch of a sloping or receding plane. A value here can break a metaphor, so watch the set rather than the number.",
+    options: [["shallow", G.sshal, "Shallow"], ["iso", G.siso, "Isometric"], ["45", G.s45, "45°"]],
+    affects: ["warehouse","package","vehicle","document"] },
+  { id: "arrowhead", label: "Arrowhead", kind: "enum",
+    why: "Refused by the three-consumer rule in the real build: two parts is a property of those parts, not a decision about the language. Shown here to make the rule visible.",
+    options: [["open", G.open, "Open V"], ["closed", G.closed, "Closed"], ["chevron", G.chev, "Chevron"]],
+    affects: ["arrow","check"] },
+  { id: "detailRows", label: "Detail rows", kind: "range", min: 1, max: 4, step: 1,
+    why: "How many rows of repeating detail survive.",
+    affects: ["building","warehouse"] },
+];
+
+const TOKENS = [
+  { id: "strokeWidth", label: "Stroke", min: 0.5, max: 3, step: 0.05 },
+  { id: "grid",        label: "Grid",   min: 0.25, max: 2, step: 0.25 },
+  { id: "safeArea",    label: "Safe",   min: 0, max: 4, step: 0.5 },
+  { id: "gap",         label: "Gap",    min: 0, max: 4, step: 0.25 },
+];
+const OPTICS = [
+  { id: "interiorThin", label: "Thin inside", min: 0, max: .6, step: .05, why: "Detail inside a contour draws lighter, so the contour stays the heavier line." },
+  { id: "dotRatio",     label: "Dot size",    min: 0, max: 2.5, step: .1, why: "One drawn diameter for every dot in the set." },
+  { id: "grade",        label: "Grade · dark", min: -0.5, max: 0.5, step: .05, attested: true, why: "Thinning applied only on a dark ground. A light shape on dark reads heavier than the same shape inverted." },
+];
+
+const state = {
+  axes: { geometric: 80, minimal: 70, technical: 72, literal: 55 },
+  manual: {},
+  tokens: { strokeWidth: 1.5, grid: 0.5, safeArea: 1, gap: 1.5 },
+  optics: { interiorThin: 0, dotRatio: 0, grade: 0 },
+  size: 24, duo: true, theme: "light",
+  selected: null, exceptions: {}, focusTrait: null,
+  learn: false, shut: {}, litAxis: null,
+};
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function derive() {
+  const out = {}, contrib = {};
+  for (const [axis, moves] of Object.entries(DERIVATION)) {
+    const t = state.axes[axis] / 100;
+    for (const [trait, ends] of Object.entries(moves)) {
+      const v = typeof ends[0] === "number" ? lerp(ends[0], ends[1], t) : (t >= 0.5 ? ends[1] : ends[0]);
+      (contrib[trait] ||= []).push({ axis, v });
+      (out[trait] ||= []).push(v);
+    }
+  }
+  const final = {};
+  for (const [trait, vals] of Object.entries(out)) {
+    final[trait] = typeof vals[0] === "number" ? vals.reduce((a, b) => a + b, 0) / vals.length : vals[vals.length - 1];
+  }
+  if (final.detailRows !== undefined) final.detailRows = Math.round(final.detailRows);
+  return { final, contrib };
+}
+/**
+ * `mixed` is the absence of a decision, so it is what you get until somebody
+ * makes one — not a fourth option sitting beside the three real ones. Showing
+ * it as a button would say it is a style you can choose, which is exactly the
+ * wrong idea.
+ */
+const MIXABLE = ["aperture", "slope"];
+function traits() {
+  const t = { ...derive().final, ...state.manual };
+  for (const id of MIXABLE) if (!(id in state.manual)) t[id] = "mixed";
+  return t;
+}
+function traitsFor(name) { const e = state.exceptions[name]; const b = traits(); return e ? { ...b, ...e.set } : b; }
+/* ==========================================================================
+   The mock primitives. Authored in a 24×24 box and driven by the traits.
+   Not the real ones; enough of them to judge whether the set moves together.
+   ========================================================================== */
+
+const R = (x, y, w, h, r = 0) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${Math.min(r, w/2, h/2)}"/>`;
+const L = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+const C = (cx, cy, r) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`;
+const P = (pts, close) => `<polyline points="${pts.map(p => p.join(",")).join(" ")}"${close ? ' class="z"' : ""}/>`;
+const PATH = d => `<path d="${d}"/>`;
+
+const SLOPE = { "45": 1, iso: 0.5, shallow: 0.32 };
+
+/**
+ * One opening, drawn the way the language says openings are drawn.
+ *
+ * Note for the review: using a single `aperture` trait for both a window and a
+ * door is already too blunt here, which is a small live example of why the
+ * trait list needs the property survey rather than my guesses.
+ */
+function opening(t, x, y, w, h) {
+  if (t.aperture === "line") return L(x, y, x + w, y);
+  if (t.aperture === "notch") return P([[x, y + h], [x, y], [x + w, y], [x + w, y + h]], false);
+  return R(x, y, w, h, Math.min(t.cornerRadius * 0.4, w / 2, h / 2));
+}
+/** A door is always an opening with no bottom: it meets the floor it stands on. */
+const doorway = (t, x, y, w, h) => P([[x, y + h], [x, y], [x + w, y], [x + w, y + h]], false);
+
+const PRIMS = {
+  building: t => {
+    const r = t.cornerRadius, pad = 24 * t.inset;
+    const rows = Math.max(1, Math.min(4, t.detailRows));
+    const out = [R(3, 1, 18, 22, r)];
+    const top = 4.5, span = 11;
+    for (let i = 0; i < rows; i++) {
+      const y = top + i * (span / rows);
+      out.push(opening(t, 5.5 + pad * .25, y, 3.5, 2.5), opening(t, 15 - pad * .25, y, 3.5, 2.5));
+    }
+    out.push(doorway(t, 10, 18, 4, 5));
+    return out;
+  },
+  warehouse: t => {
+    const rise = 8 * SLOPE[t.slope], eave = 10, pad = 24 * t.inset;
+    const out = [P([[2, 22], [2, eave], [12, eave - rise], [22, eave], [22, 22]], true)];
+    out.push(doorway(t, 6 + pad * .4, 14, 12 - pad * .8, 8));
+    if (t.detailRows >= 3) out.push(L(6 + pad * .4, 18, 18 - pad * .4, 18));
+    return out;
+  },
+  package: t => {
+    const d = 11 * SLOPE[t.slope];
+    const mid = 2 + 2 * d;
+    return [P([[12, 2], [22, 2 + d], [22, 22 - d], [12, 22], [2, 22 - d], [2, 2 + d]], true),
+            L(2, 2 + d, 12, mid), L(12, mid, 22, 2 + d), L(12, mid, 12, 22)];
+  },
+  document: t => {
+    const f = 9 * SLOPE[t.slope];
+    return [PATH(`M4 1 L${20 - f} 1 L20 ${1 + f} L20 23 L4 23 Z`),
+            P([[20 - f, 1], [20 - f, 1 + f], [20, 1 + f]], false)];
+  },
+  device: t => {
+    const r = t.cornerRadius, pad = Math.max(1.5, 22 * t.inset);
+    return [R(1, 3, 22, 14, r), opening(t, 1 + pad, 3 + pad, 22 - pad * 2, 14 - pad * 2),
+            L(12, 17, 12, 21), L(7, 21, 17, 21)];
+  },
+  vehicle: t => {
+    const r = t.cornerRadius, w = 2.6 * t.accentSize, s = 5 * SLOPE[t.slope];
+    return [R(1, 5, 12, 10, r),
+            PATH(`M13 8 L${22 - s} 8 L22 ${8 + s} L22 15 L13 15 Z`),
+            C(5, 17.5, w), C(18, 17.5, w)];
+  },
+  person: t => {
+    const hr = 4.2 * t.accentSize;
+    return [C(12, 3 + hr, hr), PATH(`M3.5 22 L3.5 19 A5.5 5.5 0 0 1 9 13.5 L15 13.5 A5.5 5.5 0 0 1 20.5 19 L20.5 22`)];
+  },
+  warning: t => {
+    const r = Math.min(t.cornerRadius * .5, 1.2), d = 1.1 * t.accentSize;
+    return [P([[12, 2], [22, 20], [2, 20]], true), R(11, 8, 2, 5.5, r), C(12, 16.6, d)];
+  },
+  clock: t => [C(12, 12, 10.5), P([[12, 6], [12, 12], [16, 16]], false), C(12, 12, 0.85 * t.accentSize)],
+  location: t => [PATH(`M12 22.5 C12 22.5 3.5 15 3.5 10 A8.5 8.5 0 0 1 20.5 10 C20.5 15 12 22.5 12 22.5 Z`),
+                  C(12, 10, 2.9 * t.accentSize)],
+  thermometer: t => [PATH(`M10 15.5 L10 4.5 A2 2 0 0 1 14 4.5 L14 15.5`), C(12, 18, 3.2 * t.accentSize)],
+  arrow: t => {
+    if (t.arrowhead === "closed") return [L(2, 12, 18, 12), P([[14, 6.5], [22, 12], [14, 17.5]], true)];
+    if (t.arrowhead === "chevron") return [L(2, 12, 21, 12), P([[16.5, 8], [20.5, 12], [16.5, 16]], false)];
+    return [L(2, 12, 21, 12), P([[14, 5.5], [21, 12], [14, 18.5]], false)];
+  },
+  check: t => t.arrowhead === "closed"
+    ? [P([[2.5, 13], [9, 19.5], [21.5, 5], [9, 15.5]], true)]
+    : [P([[2.5, 13], [9, 19.5], [21.5, 5]], false)],
+  snowflake: () => [90, 30, -30].map(d => {
+    const r = (d * Math.PI) / 180, dx = Math.cos(r) * 10.5, dy = Math.sin(r) * 10.5;
+    return L(12 - dx, 12 - dy, 12 + dx, 12 + dy);
+  }),
+  "rounded-rect": t => [R(2, 2, 20, 20, t.cornerRadius)],
+  circle: () => [C(12, 12, 10.5)],
+  square: () => [R(2.5, 2.5, 19, 19, 0)],
+  plus: () => [L(12, 3, 12, 21), L(3, 12, 21, 12)],
+};
+
+const CUSTOM = {
+  "dock-door": { draft: true, build: t => {
+    const r = t.cornerRadius, pad = 22 * t.inset;
+    return [R(2, 3, 20, 19, r), L(2, 7.5, 22, 7.5), doorway(t, 5 + pad * .3, 11, 14 - pad * .6, 11)];
+  } },
+  "pallet": { draft: true, build: t => {
+    const r = Math.min(t.cornerRadius, 2);
+    return [R(3, 6, 18, 6, r), L(6, 12, 6, 18), L(18, 12, 18, 18), L(3, 18, 21, 18), L(12, 12, 12, 18)];
+  } },
+  "cold-chain": { draft: false, build: t => {
+    const r = t.cornerRadius, a = 4.5 * t.accentSize;
+    const star = [90, 30, -30].map(d => {
+      const rad = (d * Math.PI) / 180;
+      return L(17 - Math.cos(rad) * a, 7 - Math.sin(rad) * a, 17 + Math.cos(rad) * a, 7 + Math.sin(rad) * a);
+    });
+    return [R(2, 10, 13, 12, r), ...star];
+  } },
+};
+
+/** Icons assembled from those parts: a subject with a badge in the corner. */
+const COMPOSED = [
+  ["cold-store", "warehouse", "snowflake"],
+  ["new-document", "document", "plus"],
+  ["fleet-status", "vehicle", "clock"],
+  ["site-alert", "building", "warning"],
+  ["delivered", "package", "check"],
+  ["account", "person", null],
+];
+
+/** Render one primitive at a pixel size, with the traits it actually sees. */
+function draw(name, px) {
+  const t = traitsFor(name);
+  const build = PRIMS[name] || CUSTOM[name]?.build;
+  if (!build) return "";
+  let w = state.tokens.strokeWidth;
+  // The 16px size carries a lighter stroke, the way an optical size does.
+  if (state.size === 16) w *= 0.85;
+  const body = build(t).join("");
+  return `<svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none" stroke="currentColor"
+    stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+/** A subject with a badge in the corner, the way the grammar composes one. */
+function drawComposed(subject, badge, px) {
+  let w = state.tokens.strokeWidth;
+  if (state.size === 16) w *= 0.85;
+  const sub = (PRIMS[subject] || CUSTOM[subject]?.build)(traitsFor(subject));
+  let body = badge
+    ? `<g transform="translate(0 3) scale(0.76)">${sub.join("")}</g>`
+      + `<g transform="translate(12.6 -0.4) scale(0.47)">${(PRIMS[badge])(traitsFor(badge)).join("")}</g>`
+    : sub.join("");
+  // A badge is drawn at a smaller scale, so its stroke has to be scaled back up
+  // to keep one weight across the icon. The real composer does this properly.
+  if (badge) body = body.replace('scale(0.76)"', 'scale(0.76)" stroke-width="' + (w / 0.76).toFixed(3) + '"')
+                        .replace('scale(0.47)"', 'scale(0.47)" stroke-width="' + (w / 0.47).toFixed(3) + '"');
+  return `<svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none" stroke="currentColor"
+    stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+
+/* ==========================================================================
+   The panel
+   ========================================================================== */
+
+const $ = s => document.querySelector(s);
+const px = () => (state.size === 24 ? 40 : 32);
+const fmt = (v, step) => (typeof v === "number" ? (step >= 1 ? String(Math.round(v)) : v.toFixed(2)) : v);
+
+/**
+ * Drag a label to sweep its value.
+ *
+ * Worth more here than it is in Figma. Choosing a construction value is not
+ * "set it to 1.2", it is "sweep it until the set feels right", and a number
+ * field makes you guess-and-check one value at a time.
+ */
+function scrub(el, get, set, step, min, max) {
+  el.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startVal = get();
+    const per = step * (e.shiftKey ? 4 : 1);
+    const move = (ev) => {
+      const steps = Math.round((ev.clientX - startX) / 3);
+      set(Math.min(max, Math.max(min, +(startVal + steps * per).toFixed(4))));
+    };
+    const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  });
+}
+
+function section(id, title, count, bodyHtml, extraHead = "") {
+  const shut = state.shut[id] ? " shut" : "";
+  return `<div class="pp-sec${shut}" data-sec="${id}">
+    <div class="pp-head"><span class="caret">▾</span><h3>${title}</h3>${count !== null ? `<span class="count">${count}</span>` : ""}${extraHead}</div>
+    <div class="pp-body">${bodyHtml}</div>
+  </div>`;
+}
+
+function traitRow(tr, eff, contrib) {
+  const manual = tr.id in state.manual;
+  const v = eff[tr.id];
+  const scope = tr.affects.length;
+  const bind = `<button class="pp-bind ${manual ? "manual" : ""}" data-bind="${tr.id}"
+      title="${manual ? "Set by hand. Click to go back to what the sliders propose." : "Proposed by the personality sliders."}"><i></i></button>`;
+  const control = tr.kind === "range"
+    ? `<input class="pp-num" type="number" data-num="${tr.id}" value="${fmt(v, tr.step)}" step="${tr.step}" min="${tr.min}" max="${tr.max}">`
+    : `<div class="pp-seg">${tr.options.map(([val, glyph, tip]) =>
+        `<button data-opt="${tr.id}" data-val="${val}" class="${v === val ? "on" : ""}" title="${tip}">${glyph}</button>`).join("")}</div>`
+      + (v === "mixed" ? `<span class="pp-mixed" title="Your parts answer this more than one way and each keeps its own. Pick one to decide it for the whole set.">Mixed</span>` : "");
+  const contribLine = !manual && contrib[tr.id]
+    ? `<p class="pp-why">${contrib[tr.id].map(c => `${c.axis} → ${typeof c.v === "number" ? c.v.toFixed(2) : c.v}`).join(" · ")}</p>` : "";
+  return `<div class="pp-row" data-trait="${tr.id}">
+      ${bind}
+      <span class="pp-label" data-scrub="${tr.id}" title="${tr.label}${tr.kind === "range" ? " · drag to sweep" : ""}">${tr.label}</span>
+      <span class="pp-ctrl">${control}</span>
+      <button class="pp-scope ${scope ? "" : "none"} ${scope > 0 && scope < 3 ? "thin" : ""}" data-scope="${tr.id}"
+        title="${scope} parts read this: ${tr.affects.join(", ")}${scope < 3 ? " — fewer than three, so this is a property of those parts rather than a decision about the language." : ""}">${scope || "—"}</button>
+    </div>
+    ${state.learn ? `<p class="pp-why">${tr.why}${tr.attested ? ' <span class="pp-attested">· documented craft</span>' : ""}</p>${contribLine}` : ""}`;
+}
+
+function numRow(item, store, opts = {}) {
+  const v = store[item.id];
+  return `<div class="pp-row" ${opts.trait ? `data-trait="${item.id}"` : ""}>
+      <button class="pp-bind none"><i></i></button>
+      <span class="pp-label" data-scrub2="${item.id}" data-store="${opts.store}">${item.label}</span>
+      <span class="pp-ctrl"><input class="pp-num" type="number" data-num2="${item.id}" data-store="${opts.store}"
+        value="${fmt(v, item.step)}" step="${item.step}" min="${item.min}" max="${item.max}"></span>
+      <button class="pp-scope ${opts.scope === "all" ? "" : "none"}" title="${opts.scope === "all" ? "Every part is drawn with this" : ""}">${opts.scope ?? ""}</button>
+    </div>${state.learn && item.why ? `<p class="pp-why">${item.why}${item.attested ? ' <span class="pp-attested">· documented craft</span>' : ""}</p>` : ""}`;
+}
+
+function renderPanel() {
+  const { contrib } = derive();
+  const eff = traits();
+  const axisMoves = (id) => Object.entries(contrib).filter(([, l]) => l.some(c => c.axis === id)).map(([t]) => t);
+
+  const axes = AXES.map(a => `
+    <div class="pp-axis ${state.litAxis === a.id ? "lit" : ""}" data-axis="${a.id}">
+      <span class="pole">${a.lo}</span>
+      <input type="range" min="0" max="100" step="5" value="${state.axes[a.id]}" data-axisin="${a.id}">
+      <span class="pole hi">${a.hi}</span>
+      <span class="val">${state.axes[a.id]}</span>
+    </div>`).join("")
+    + (state.learn ? `<p class="pp-why">Hover a slider to light the rows it proposes. Each one interpolates between endpoints you can edit, so "minimal" means what you mean by it.</p>` : "");
+
+  const learnBtn = `<button class="pp-learn ${state.learn ? "on" : ""}" id="learnBtn" title="Show what each control means">Learn</button>`;
+
+  $("#pp").innerHTML =
+    `<div class="pp-ask">
+       <textarea rows="2" placeholder="Ask for a change: make it feel more industrial"></textarea>
+       <div class="row"><button class="pp-btn primary">Propose</button><span style="flex:1"></span>${learnBtn}</div>
+     </div>`
+    + section("axes", "Personality", null, axes)
+    + section("traits", "Construction", TRAITS.length, TRAITS.map(t => traitRow(t, eff, contrib)).join(""))
+    + section("tokens", `Tokens · ${state.size}px`, null,
+        numRow(TOKENS[0], state.tokens, { store: "tokens", scope: "all" })
+        + TOKENS.slice(1).map(t => numRow(t, state.tokens, { store: "tokens", scope: "all" })).join(""))
+    + section("optics", "Optical corrections", null, OPTICS.map(o => numRow(o, state.optics, { store: "optics", scope: "all" })).join(""))
+    + `<p class="pp-foot">A row changes every part that declared it, not the part you selected. Hover a row to see which.</p>`;
+
+  wirePanel();
+}
+
+function wirePanel() {
+  document.querySelectorAll(".pp-head").forEach(h => h.onclick = () => {
+    const id = h.parentElement.dataset.sec;
+    state.shut[id] = !state.shut[id];
+    render();
+  });
+  $("#learnBtn").onclick = (e) => { e.stopPropagation(); state.learn = !state.learn; render(); };
+
+  document.querySelectorAll("[data-axisin]").forEach(i => {
+    i.oninput = e => { state.axes[i.dataset.axisin] = +e.target.value; render(); };
+  });
+  document.querySelectorAll(".pp-axis").forEach(a => {
+    const moves = Object.entries(derive().contrib).filter(([, l]) => l.some(c => c.axis === a.dataset.axis)).map(([t]) => t);
+    a.onmouseenter = () => { state.litAxis = a.dataset.axis; highlight(moves); };
+    a.onmouseleave = () => { state.litAxis = null; highlight([]); };
+  });
+
+  document.querySelectorAll("[data-bind]").forEach(b => b.onclick = () => {
+    delete state.manual[b.dataset.bind];
+    render();
+  });
+  document.querySelectorAll("[data-num]").forEach(i => i.oninput = e => {
+    if (Number.isFinite(+e.target.value)) { state.manual[i.dataset.num] = +e.target.value; render(); }
+  });
+  document.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => {
+    const id = b.dataset.opt;
+    // Clicking the option already chosen puts the trait back to mixed, which is
+    // the only way to un-decide something without a fourth fake option.
+    if (state.manual[id] === b.dataset.val) delete state.manual[id];
+    else state.manual[id] = b.dataset.val;
+    render();
+  });
+  document.querySelectorAll("[data-num2]").forEach(i => i.oninput = e => {
+    const store = i.dataset.store === "optics" ? state.optics : state.tokens;
+    if (Number.isFinite(+e.target.value)) { store[i.dataset.num2] = +e.target.value; render(); }
+  });
+
+  // Scrubbing, for traits and for plain numbers.
+  document.querySelectorAll("[data-scrub]").forEach(el => {
+    const tr = TRAITS.find(t => t.id === el.dataset.scrub);
+    if (!tr || tr.kind !== "range") return;
+    scrub(el, () => traits()[tr.id], v => { state.manual[tr.id] = v; render(); }, tr.step, tr.min, tr.max);
+  });
+  document.querySelectorAll("[data-scrub2]").forEach(el => {
+    const store = el.dataset.store === "optics" ? state.optics : state.tokens;
+    const item = [...TOKENS, ...OPTICS].find(t => t.id === el.dataset.scrub2);
+    scrub(el, () => store[item.id], v => { store[item.id] = v; render(); }, item.step, item.min, item.max);
+  });
+
+  // Scope: hovering a row scopes the canvas, clicking the badge pins it.
+  document.querySelectorAll(".pp-row[data-trait]").forEach(r => {
+    r.onmouseenter = () => { state.focusTrait = r.dataset.trait; renderSheets(); };
+    r.onmouseleave = () => { state.focusTrait = null; renderSheets(); };
+  });
+}
+
+function highlight(ids) {
+  document.querySelectorAll(".pp-row[data-trait]").forEach(r => {
+    r.style.background = ids.includes(r.dataset.trait) ? "var(--bg-3)" : "";
+  });
+}
+
+/* ==========================================================================
+   The canvas, unchanged in behaviour from v1
+   ========================================================================== */
+
+function draw(name, size) {
+  const t = traitsFor(name);
+  const build = PRIMS[name] || CUSTOM[name]?.build;
+  if (!build) return "";
+  let w = state.tokens.strokeWidth;
+  if (state.size === 16) w *= 0.85;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor"
+    stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${build(t).join("")}</svg>`;
+}
+
+function drawComposed(subject, badge, size) {
+  let w = state.tokens.strokeWidth;
+  if (state.size === 16) w *= 0.85;
+  const sub = (PRIMS[subject] || CUSTOM[subject]?.build)(traitsFor(subject));
+  let body = badge
+    ? `<g transform="translate(0 3) scale(0.76)" stroke-width="${(w / 0.76).toFixed(3)}">${sub.join("")}</g>`
+      + `<g transform="translate(12.6 -0.4) scale(0.47)" stroke-width="${(w / 0.47).toFixed(3)}">${PRIMS[badge](traitsFor(badge)).join("")}</g>`
+    : sub.join("");
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor"
+    stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+const duo = (svg) => state.duo
+  ? `<div class="duo"><span class="on-light">${svg}</span><span class="on-dark">${svg}</span></div>` : svg;
+
+function cell(n, dim, isDraft, maker = draw) {
+  const exc = state.exceptions[n];
+  return `<div class="cell ${dim ? "dim" : ""} ${state.selected === n ? "sel" : ""}" data-n="${n}">
+    ${isDraft ? '<span class="draft">draft</span>' : ""}${exc ? '<span class="flag"></span>' : ""}
+    ${duo(maker(n, px()))}<div class="nm">${n}</div></div>`;
+}
+
+function renderSheets() {
+  const focus = state.focusTrait ? TRAITS.find(t => t.id === state.focusTrait) : null;
+  const dim = n => focus && !focus.affects.includes(n);
+  const style = `--part-size:${px()}px`;
+
+  const sheet = $("#sheet"); sheet.setAttribute("style", style);
+  sheet.innerHTML = Object.keys(PRIMS).map(n => cell(n, dim(n))).join("");
+  const cs = $("#customSheet"); cs.setAttribute("style", style);
+  cs.innerHTML = Object.keys(CUSTOM).map(n => cell(n, dim(n), CUSTOM[n].draft)).join("");
+  const comp = $("#composedSheet"); comp.setAttribute("style", style);
+  comp.innerHTML = COMPOSED.map(([name, subj, badge]) => {
+    const d = focus && !focus.affects.includes(subj) && !(badge && focus.affects.includes(badge));
+    return `<div class="cell ${d ? "dim" : ""}">${duo(drawComposed(subj, badge, px()))}<div class="nm">${name}</div></div>`;
+  }).join("");
+
+  if (focus) {
+    $("#scopeNote").style.display = "";
+    $("#scopeNote").innerHTML = `<b>${focus.label}</b> is declared by ${focus.affects.length} parts: ${focus.affects.join(", ")}. The rest are dimmed because this control cannot reach them.`;
+  } else {
+    $("#scopeNote").style.display = "none";
+  }
+  document.querySelectorAll(".cell[data-n]").forEach(el => {
+    el.onclick = () => { state.selected = state.selected === el.dataset.n ? null : el.dataset.n; render(); };
+  });
+}
+
+function renderFooter() {
+  const n = Object.keys(state.exceptions).length;
+  $("#excPill").textContent = n === 0 ? "No exceptions. Every part is drawn the way the language says." : `⚠ ${n} exception(s)`;
+}
+
+function render() { renderPanel(); renderSheets(); renderFooter(); }
+
+document.querySelectorAll(".chip[data-size]").forEach(c => c.onclick = () => {
+  state.size = +c.dataset.size;
+  document.querySelectorAll(".chip[data-size]").forEach(x => x.classList.toggle("on", x === c));
+  render();
+});
+$("#duoToggle").onclick = e => {
+  state.duo = !state.duo;
+  e.target.classList.toggle("on", state.duo);
+  e.target.textContent = state.duo ? "Compare light and dark" : "Compare off";
+  render();
+};
+function setTheme(t) {
+  state.theme = t;
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll("#themeSeg button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  try { localStorage.setItem("if-theme-v2", t); } catch {}
+}
+document.querySelectorAll("#themeSeg button").forEach(b => b.onclick = () => setTheme(b.dataset.t));
+let saved = "light";
+try { saved = localStorage.getItem("if-theme-v2") || "light"; } catch {}
+setTheme(saved);
+
+render();
+</script>
+</body>
+</html>

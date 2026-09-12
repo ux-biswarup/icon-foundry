@@ -3,6 +3,7 @@ import type { IconStyle } from "@icon-foundry/icon-language";
 import { parseIconSpec } from "@icon-foundry/icon-spec";
 import { useEffect, useState } from "react";
 import { PreviewStrip } from "../components/IconSvg.js";
+import { ScoreSummary } from "../components/Scores.js";
 import { ValidationList } from "../components/ValidationList.js";
 import { agentStatus, requestCandidates, type AgentStatus } from "../lib/agentClient.js";
 import { renderSpec } from "../lib/render.js";
@@ -58,10 +59,14 @@ export function CreatePage() {
   const approve = async (c: Candidate) => {
     try {
       await mutate(async (lib) => {
+        const source = { brief: brief.trim(), ...(result?.model && { model: result.model }) };
         for (const el of c.newElements) {
-          await lib.saveElement({ ...el, keywords: el.keywords ?? [], source: { brief: brief.trim(), ...(result?.model && { model: result.model }) } });
+          await lib.saveElement({ ...el, keywords: el.keywords ?? [], source });
         }
-        await lib.save(c.spec, { source: { brief: brief.trim(), ...(result?.model && { model: result.model }) } });
+        // A new concept is the durable half of the work: once it is recorded,
+        // the next person asking for this needs no model at all.
+        if (c.newConcept) await lib.saveConcept({ ...c.newConcept, source });
+        await lib.save(c.spec, { source, ...(c.concept && { concept: c.concept }) });
       });
       navigate(`library/${encodeURIComponent(c.spec.name)}`);
     } catch (e) {
@@ -112,12 +117,28 @@ export function CreatePage() {
           {status.model
             ? `Drafting with ${status.model}. New subjects become draft elements you approve.`
             : status.error
-              ? `Model not available: ${status.error}. Arranging existing vocabulary instead.`
-              : "No model configured; arranging the existing vocabulary. Set ICON_FOUNDRY_PROVIDER to draft new subjects."}
+              ? `Model not available: ${status.error} Arranging the existing vocabulary instead.`
+              : "No model configured, so this arranges the existing vocabulary only. Add a key to apps/web/.env and restart to draft subjects your vocabulary lacks."}
         </p>
       </div>
 
       {error && <p className="error-text">{error}</p>}
+
+      {result?.existing && (
+        <div className="already">
+          <div>
+            <strong>{result.existing.concept.name}</strong> is already answered by{" "}
+            <a href={`#/library/${encodeURIComponent(result.existing.icon.spec.name)}`}>{result.existing.icon.spec.name}</a>.
+            <p className="muted small-text">
+              Nothing was drafted, and no model was called. Use the icon you have, unless this brief means something
+              different.
+            </p>
+          </div>
+          <button className="ghost" disabled={busy} onClick={() => void run({ feedback: "draft a new option anyway" })}>
+            Draft anyway
+          </button>
+        </div>
+      )}
 
       {result && (
         <>
@@ -129,6 +150,7 @@ export function CreatePage() {
             </ul>
           )}
           {result.candidates.length === 0 && !error && <p className="muted">No candidate survived validation. Try different words.</p>}
+          <p className="muted small-text">Best first, by how well each holds the language's preferences.</p>
           <div className="candidates">
             {result.candidates.map((c, i) => (
               <CandidateCard
@@ -141,7 +163,7 @@ export function CreatePage() {
                 onChange={(spec) => {
                   const { validation, svg } = renderSpec(spec, library);
                   if (!svg) return;
-                  const updated: Candidate = { ...c, spec, svg, validation };
+                  const updated: Candidate = { ...c, spec, svg, validation, scores: validation.scores, overall: validation.overall };
                   setResult({ ...result, candidates: result.candidates.map((x) => (x.id === c.id ? updated : x)) });
                   setFocus(updated);
                 }}
@@ -203,11 +225,13 @@ function CandidateCard({
       <header>
         <span className="letter">{letter}</span>
         <span className="name">{c.spec.name}</span>
+        {c.overall !== undefined && <span className="muted small-text">{c.overall.toFixed(2)}</span>}
         {c.newElements.length > 0 && <span className="pill pill-draft">new: {c.newElements.map((e) => e.name).join(", ")}</span>}
       </header>
       <PreviewStrip svg={c.svg} canvas={c.spec.canvas} />
       <p className="rationale">{c.rationale}</p>
       <ValidationList result={c.validation} compact />
+      <ScoreSummary overall={c.overall} scores={c.scores} />
       <div className="actions">
         <button className="primary" onClick={(e) => { e.stopPropagation(); onApprove(); }}>
           Approve

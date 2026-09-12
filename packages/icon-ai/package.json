@@ -12,6 +12,7 @@
   "dependencies": {
     "@icon-foundry/icon-language": "workspace:*",
     "@icon-foundry/icon-primitives": "workspace:*",
+    "@icon-foundry/icon-renderer": "workspace:*",
     "@icon-foundry/icon-spec": "workspace:*",
     "@icon-foundry/icon-validator": "workspace:*"
   }

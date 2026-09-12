@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Icon Foundry — Language page concept</title>
+<!--
+  CONCEPT, NOT THE IMPLEMENTATION.
+
+  A standalone review artefact for docs/proposals/construction.md §8. Open it
+  in a browser; there is no build step and no dependency.
+
+  What is real here: the layout, and the fact that every control on the right
+  redraws every part in the middle. The primitives are a small hand-written
+  mock of the real ones, enough to judge whether moving one control makes the
+  whole set feel like one hand. That is the only question this page exists to
+  answer, and a static mockup cannot answer it.
+
+  What is not real: the numbers, the derivation endpoints, and the trait list
+  itself, which is a first guess from our own primitives and is waiting on a
+  survey of what published icon systems actually specify.
+-->
+<style>
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --bg: #fff; --bg-2: #f5f5f4; --bg-3: #e9e9e7;
+  --fg: #1a1a1a; --fg-2: #6b6b6b;
+  --line: #ddd; --accent: #1a1a1a; --accent-fg: #fff;
+  --ok: #2f7d4f; --warn: #a86a00; --err: #c0392b;
+  --note-bg: #fff8e6; --note-line: #f0e0b8; --note-fg: #6b4e00;
+  --radius: 8px;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", system-ui, sans-serif;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #161616; --bg-2: #1f1f1f; --bg-3: #2a2a2a;
+  --fg: #ececec; --fg-2: #9a9a9a;
+  --line: #333; --accent: #ececec; --accent-fg: #161616;
+  --ok: #5fbf85; --warn: #e0a233; --err: #ef6b5f;
+  --note-bg: #2a2410; --note-line: #4a3f1a; --note-fg: #e0c98a;
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    color-scheme: dark;
+    --bg: #161616; --bg-2: #1f1f1f; --bg-3: #2a2a2a;
+    --fg: #ececec; --fg-2: #9a9a9a;
+    --line: #333; --accent: #ececec; --accent-fg: #161616;
+    --ok: #5fbf85; --warn: #e0a233; --err: #ef6b5f;
+    --note-bg: #2a2410; --note-line: #4a3f1a; --note-fg: #e0c98a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* ---------- chrome ---------- */
+nav {
+  display: flex; align-items: center; gap: 18px;
+  padding: 0 16px; height: 48px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--bg); z-index: 5;
+}
+nav .brand { font-weight: 600; }
+nav a { color: var(--fg-2); text-decoration: none; font-size: 13px; }
+nav a.on { color: var(--fg); font-weight: 600; box-shadow: inset 0 -2px 0 var(--fg); }
+nav .spacer { flex: 1; }
+nav .source { font-size: 12px; color: var(--fg-2); }
+.concept-note {
+  background: var(--note-bg); border-bottom: 1px solid var(--note-line); color: var(--note-fg);
+  font-size: 12px; padding: 7px 16px;
+}
+
+/* ---------- three columns ---------- */
+.page { display: grid; grid-template-columns: 272px minmax(0, 1fr) 330px; height: calc(100vh - 48px - 31px); }
+.col { overflow-y: auto; padding: 16px; }
+.col.left { border-right: 1px solid var(--line); }
+.col.right { border-left: 1px solid var(--line); }
+.col.mid { padding: 16px 20px; background: var(--bg); }
+.col-head {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--fg-2); font-weight: 600; margin: 0 0 2px;
+}
+.col-sub { font-size: 12px; color: var(--fg-2); margin: 0 0 16px; }
+
+/* ---------- left column ---------- */
+details.block { border-bottom: 1px solid var(--line); padding: 9px 0; }
+details.block > summary {
+  cursor: pointer; font-size: 12px; font-weight: 600; list-style: none;
+  display: flex; justify-content: space-between; align-items: center;
+}
+details.block > summary::-webkit-details-marker { display: none; }
+details.block > summary::after { content: "+"; color: var(--fg-2); font-weight: 400; }
+details.block[open] > summary::after { content: "–"; }
+details.block .body { padding: 8px 0 4px; font-size: 12px; color: var(--fg-2); }
+details.block input[type=text], details.block textarea {
+  width: 100%; padding: 5px 7px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--bg); font-size: 12px;
+}
+details.block ul { margin: 4px 0; padding-left: 16px; }
+details.block li { margin-bottom: 3px; }
+.tag {
+  display: inline-block; background: var(--bg-3); border-radius: 4px;
+  padding: 1px 6px; font-size: 11px; margin: 0 3px 3px 0; color: var(--fg);
+}
+.tag.no { background: var(--bg-3); color: var(--err); text-decoration: line-through; }
+.weight-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.weight-row span:first-child { flex: 1; color: var(--fg); }
+.weight-row input { flex: 0 0 78px; }
+.rule-count { font-size: 11px; color: var(--fg-2); padding: 10px 0 0; line-height: 1.7; }
+.rule-count b { color: var(--fg); }
+
+/* ---------- middle: the canvas ---------- */
+.canvas-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.chip {
+  border: 1px solid var(--line); background: var(--bg); border-radius: 999px;
+  padding: 3px 11px; font-size: 12px; cursor: pointer; color: var(--fg-2);
+}
+.chip.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.canvas-bar .spacer { flex: 1; }
+.filter-note {
+  font-size: 12px; color: var(--note-fg); background: var(--note-bg);
+  border: 1px solid var(--note-line); border-radius: 6px; padding: 5px 10px; margin-bottom: 12px;
+}
+.sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.cell {
+  border: 1px solid transparent; border-radius: var(--radius); padding: 10px 4px 7px;
+  text-align: center; cursor: pointer; position: relative; transition: opacity .12s;
+}
+.cell:hover { border-color: var(--line); }
+.cell.sel { border-color: var(--accent); background: var(--bg-2); }
+.cell.dim { opacity: .16; pointer-events: none; }
+.cell svg { display: block; margin: 0 auto; }
+.cell .nm { font-size: 11px; color: var(--fg-2); margin-top: 6px; word-break: break-word; }
+.cell .flag {
+  position: absolute; top: 6px; right: 7px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--warn);
+}
+.cell .draft {
+  position: absolute; top: 5px; left: 7px; font-size: 9px; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--warn); font-weight: 700;
+}
+.sheet-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2);
+  font-weight: 600; margin: 22px 0 8px; display: flex; gap: 8px; align-items: center;
+}
+/* Judging an icon in one mode only is judging half of it: a light shape on a
+   dark ground reads heavier than the same shape inverted, at the same stroke. */
+.duo { display: flex; gap: 3px; justify-content: center; }
+/* Both chips carry their own edge, so neither dissolves into whichever theme
+   the app happens to be in. The comparison has to read the same either way. */
+.duo > span { display: block; border-radius: 5px; padding: 4px 5px; }
+.duo .on-light { background: #fff; color: #1a1a1a; border: 1px solid #e2e2e2; }
+.duo .on-dark { background: #161616; color: #ececec; border: 1px solid #3a3a3a; }
+.theme-seg { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.theme-seg button {
+  border: 0; background: none; color: var(--fg-2); font-size: 12px;
+  padding: 3px 10px; cursor: pointer;
+}
+.theme-seg button.on { background: var(--accent); color: var(--accent-fg); }
+
+/* the exception drawer */
+.drawer { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-top: 18px; }
+.drawer h4 { margin: 0 0 2px; font-size: 14px; }
+.drawer .sub { font-size: 12px; color: var(--fg-2); margin: 0 0 12px; }
+.drawer .pair { display: flex; gap: 22px; align-items: center; margin-bottom: 12px; }
+.drawer .pair figure { margin: 0; text-align: center; }
+.drawer .pair figcaption { font-size: 11px; color: var(--fg-2); margin-top: 4px; }
+.warn-box {
+  background: var(--note-bg); border: 1px solid var(--note-line); color: var(--note-fg);
+  border-radius: 6px; padding: 9px 11px; font-size: 12px; margin-bottom: 10px;
+}
+.drawer textarea { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+.drawer .actions { display: flex; gap: 8px; margin-top: 10px; }
+
+/* ---------- right: the controls ---------- */
+.group { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 14px; }
+.group > h3 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--fg-2); font-weight: 600; margin: 0 0 3px;
+}
+.group > .why { font-size: 12px; color: var(--fg-2); margin: 0 0 11px; }
+.ctrl { margin-bottom: 13px; }
+.ctrl-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 3px; }
+.ctrl-head label { font-size: 12px; font-weight: 600; flex: 1; }
+.ctrl-head .val { font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.badge { font-size: 10px; border-radius: 4px; padding: 1px 5px; letter-spacing: .02em; }
+.badge.derived { background: var(--bg-3); color: var(--fg-2); }
+.badge.manual { background: var(--accent); color: var(--accent-fg); }
+.ctrl input[type=range] { width: 100%; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button {
+  flex: 1; border: 0; background: var(--bg); padding: 5px 2px; font-size: 11px;
+  cursor: pointer; color: var(--fg-2); border-right: 1px solid var(--line);
+}
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--accent); color: var(--accent-fg); }
+.affects { font-size: 11px; color: var(--fg-2); margin-top: 3px; }
+.affects b { color: var(--fg); font-weight: 600; }
+.reset { font-size: 11px; color: var(--fg-2); background: none; border: 0; cursor: pointer; padding: 0; text-decoration: underline; }
+.axis-contrib { font-size: 11px; color: var(--fg-2); margin-top: 2px; }
+button.primary {
+  background: var(--accent); color: var(--accent-fg); border: 0;
+  border-radius: 6px; padding: 6px 13px; font-size: 13px; cursor: pointer;
+}
+button.ghost { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 13px; font-size: 13px; cursor: pointer; }
+footer.bar {
+  position: sticky; bottom: 0; background: var(--bg); border-top: 1px solid var(--line);
+  padding: 9px 16px; display: flex; align-items: center; gap: 10px; font-size: 13px;
+}
+footer.bar .spacer { flex: 1; }
+.exceptions-pill { font-size: 12px; color: var(--warn); }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="brand">⬡ Icon Foundry</span>
+  <a href="#">Library</a>
+  <a href="#">Create</a>
+  <a href="#" class="on">Language</a>
+  <span class="spacer"></span>
+  <span class="source">📁 acme-icons · Acme Icons</span>
+  <div class="theme-seg" id="themeSeg">
+    <button data-t="light">Light</button><button data-t="dark">Dark</button><button data-t="system">System</button>
+  </div>
+</nav>
+<div class="concept-note">
+  <b>Concept for review.</b> The layout is the proposal. The controls really do redraw the parts, so you can judge whether one
+  control makes the whole set move together. The trait list is a first guess and is waiting on the property research.
+</div>
+
+<div class="page">
+
+  <!-- ============ LEFT: the language as words and rules ============ -->
+  <div class="col left">
+    <p class="col-head">The language</p>
+    <p class="col-sub">What it is and what it stands for. Written once, read rarely. None of this changes the drawing.</p>
+
+    <details class="block" open>
+      <summary>Identity</summary>
+      <div class="body">
+        <input type="text" value="Acme Icons" style="margin-bottom:6px">
+        <textarea rows="2">Icons for a logistics tool someone uses all day.</textarea>
+      </div>
+    </details>
+
+    <details class="block">
+      <summary>Purpose</summary>
+      <div class="body"><textarea rows="3">They should be read, not noticed. A person scanning forty rows should never stop on one.</textarea></div>
+    </details>
+
+    <details class="block">
+      <summary>Principles <span style="color:var(--fg-2);font-weight:400">8</span></summary>
+      <div class="body">
+        <ul>
+          <li>Keep the natural proportions of real objects.</li>
+          <li>Closer to a technical drawing than an illustration.</li>
+          <li>Detail is a budget. If it disappears at 16px, do not draw it.</li>
+          <li>Draw a recurring part the same way every time.</li>
+          <li style="color:var(--fg-2)">…and 4 more</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="block">
+      <summary>Metaphors</summary>
+      <div class="body">
+        <div style="margin-bottom:6px">
+          <span class="tag">containers</span><span class="tag">arrows</span><span class="tag">badges</span><span class="tag">documents</span>
+        </div>
+        <div>
+          <span class="tag no">faces</span><span class="tag no">fake depth</span><span class="tag no">mascots</span>
+        </div>
+      </div>
+    </details>
+
+    <details class="block">
+      <summary>Preferences</summary>
+      <div class="body">
+        <div class="weight-row"><span>Restraint</span><input type="range" min="0" max="2" step=".25" value="1.5"></div>
+        <div class="weight-row"><span>Optical balance</span><input type="range" min="0" max="2" step=".25" value="1"></div>
+        <div class="weight-row"><span>Symmetry</span><input type="range" min="0" max="2" step=".25" value="0"></div>
+        <div class="weight-row"><span>Silhouette</span><input type="range" min="0" max="2" step=".25" value="1.25"></div>
+        <div class="weight-row"><span>Breathing room</span><input type="range" min="0" max="2" step=".25" value="1"></div>
+      </div>
+    </details>
+
+    <details class="block">
+      <summary>Left to a person</summary>
+      <div class="body">
+        <ul>
+          <li>Does this belong among its neighbours?</li>
+          <li>Would someone know what it means with no label?</li>
+          <li>Does it match the purpose, not just the rules?</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="block">
+      <summary>Versions</summary>
+      <div class="body">
+        <ul>
+          <li><b>v0.3.0</b> · current</li>
+          <li>v0.2.0 · softened the corners</li>
+          <li>v0.1.0 · from the Technical preset</li>
+        </ul>
+      </div>
+    </details>
+
+    <p class="rule-count">
+      <b>13</b> rules are enforced.<br><b>5</b> are scored.<br><b>3</b> are left to you.
+    </p>
+  </div>
+
+  <!-- ============ MIDDLE: the canvas ============ -->
+  <div class="col mid">
+    <div class="canvas-bar">
+      <span class="chip on" data-size="24">24px</span>
+      <span class="chip" data-size="16">16px</span>
+      <span class="spacer"></span>
+      <span class="chip on" id="duoToggle">Compare light and dark</span>
+    </div>
+
+    <div class="filter-note" id="filterNote" style="display:none"></div>
+
+    <div class="sheet-title">Built in <span style="font-weight:400;text-transform:none;letter-spacing:0">· every part your icons are made of</span></div>
+    <div class="sheet" id="sheet"></div>
+
+    <div class="sheet-title">Your elements <span style="font-weight:400;text-transform:none;letter-spacing:0">· 2 drafts waiting on you</span></div>
+    <div class="sheet" id="customSheet"></div>
+
+    <div class="sheet-title">Icons made from them <span style="font-weight:400;text-transform:none;letter-spacing:0">· the parts are the point, but this is what ships</span></div>
+    <div class="sheet" id="composedSheet"></div>
+
+    <div class="drawer" id="drawer" style="display:none"></div>
+  </div>
+
+  <!-- ============ RIGHT: everything that moves the drawing ============ -->
+  <div class="col right">
+    <p class="col-head">The hand</p>
+    <p class="col-sub">Everything here changes what you see in the middle. Nothing here is words.</p>
+
+    <div class="group" id="axesGroup">
+      <h3>Personality</h3>
+      <p class="why">The one global control. Each slider proposes values for everything below it.</p>
+    </div>
+
+    <div class="group" id="traitGroup">
+      <h3>Construction</h3>
+      <p class="why">How a part is built. Shared by every primitive that declared it, which is what makes a set feel like one hand.</p>
+    </div>
+
+    <div class="group" id="tokenGroup">
+      <h3>Tokens · 24px</h3>
+      <p class="why">Measurements for this optical size.</p>
+    </div>
+
+    <div class="group" id="opticsGroup" style="border-bottom:0">
+      <h3>Optical corrections</h3>
+      <p class="why">Applied when an icon is rendered, never when it is checked. Off until you ask.</p>
+    </div>
+  </div>
+</div>
+
+<footer class="bar">
+  <span class="exceptions-pill" id="excPill"></span>
+  <span class="spacer"></span>
+  <span class="muted" style="color:var(--fg-2);font-size:12px" id="dirty">Unsaved changes</span>
+  <button class="ghost">Discard</button>
+  <button class="primary">Review and save</button>
+</footer>
+
+<script>
+/* ==========================================================================
+   The model. Traits are the whole idea: a named decision, declared by the
+   primitives that consume it, set once and applied everywhere.
+   ========================================================================== */
+
+const AXES = [
+  { id: "geometric", lo: "organic",    hi: "geometric" },
+  { id: "minimal",   lo: "expressive", hi: "minimal"   },
+  { id: "technical", lo: "friendly",   hi: "technical" },
+  { id: "literal",   lo: "abstract",   hi: "literal"   },
+];
+
+/* Which axis moves which trait, and to what value at each pole. Exactly the
+   mechanism the real language already uses for tokens: interpolation between
+   authored endpoints, never a formula. */
+const DERIVATION = {
+  geometric: { cornerRadius: [3.6, 0.8] },
+  technical: { cornerRadius: [3.2, 1.0], arrowhead: ["open", "closed"], slope: ["45", "iso"] },
+  minimal:   { detailRows: [3, 2], aperture: ["rect", "line"], inset: [0.2, 0.1] },
+  literal:   { detailRows: [2, 3], accentSize: [0.8, 1.15] },
+};
+
+const TRAITS = [
+  { id: "cornerRadius", label: "Corner radius", kind: "range", min: 0, max: 4, step: 0.1, unit: "u",
+    affects: ["building","device","rounded-rect","vehicle","warehouse","warning"] },
+  { id: "aperture", label: "How an opening is drawn", kind: "enum",
+    options: [["line","line"],["rect","closed"],["notch","notch"]],
+    affects: ["building","warehouse","document","device","vehicle"] },
+  { id: "inset", label: "Interior inset", kind: "range", min: 0.05, max: 0.28, step: 0.01, unit: "×",
+    affects: ["building","device","warehouse","document"] },
+  { id: "accentSize", label: "Accent size", kind: "range", min: 0.6, max: 1.5, step: 0.05, unit: "×",
+    affects: ["person","vehicle","location","clock","warning","thermometer"] },
+  { id: "slope", label: "Slope of a plane", kind: "enum",
+    options: [["45","45°"],["iso","isometric"],["shallow","shallow"]],
+    affects: ["warehouse","package","vehicle","document"] },
+  { id: "arrowhead", label: "Arrowhead", kind: "enum",
+    options: [["open","open V"],["closed","closed"],["chevron","chevron"]],
+    affects: ["arrow","check"] },
+  { id: "detailRows", label: "Rows of detail", kind: "range", min: 1, max: 4, step: 1, unit: "",
+    affects: ["building","warehouse"] },
+];
+
+const TOKENS = [
+  { id: "strokeWidth", label: "Stroke width", min: 0.5, max: 3, step: 0.05, unit: "u" },
+];
+const OPTICS = [
+  { id: "interiorThin", label: "Interior thinning", min: 0, max: .6, step: .05, unit: "×" },
+  { id: "dotRatio", label: "Dot size", min: 0, max: 2.5, step: .1, unit: "× stroke" },
+];
+
+const state = {
+  axes: { geometric: 80, minimal: 70, technical: 72, literal: 55 },
+  manual: {},                 // trait id -> value set by hand
+  tokens: { strokeWidth: 1.5 },
+  optics: { interiorThin: 0, dotRatio: 0 },
+  size: 24,
+  duo: true,      // show every part on light and on dark at once
+  theme: "light",
+  selected: null,
+  exceptions: {},             // primitive -> { trait: value, why }
+  focusTrait: null,
+};
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* Where two axes move the same trait, the proposal is the mean of their
+   contributions, and the panel shows each one rather than only the result. */
+function derive() {
+  const out = {}, contrib = {};
+  for (const [axis, moves] of Object.entries(DERIVATION)) {
+    const t = state.axes[axis] / 100;
+    for (const [trait, ends] of Object.entries(moves)) {
+      const v = typeof ends[0] === "number" ? lerp(ends[0], ends[1], t) : (t >= 0.5 ? ends[1] : ends[0]);
+      (contrib[trait] ||= []).push({ axis, v });
+      (out[trait] ||= []).push(v);
+    }
+  }
+  const final = {};
+  for (const [trait, vals] of Object.entries(out)) {
+    final[trait] = typeof vals[0] === "number"
+      ? vals.reduce((a, b) => a + b, 0) / vals.length
+      : vals[vals.length - 1];
+  }
+  if (final.detailRows !== undefined) final.detailRows = Math.round(final.detailRows);
+  return { final, contrib };
+}
+
+/** Effective traits: derived, then anything set by hand wins. */
+function traits() {
+  const { final } = derive();
+  return { ...final, ...state.manual };
+}
+/** Traits as one primitive sees them, including its own exception. */
+function traitsFor(name) {
+  const base = traits();
+  const exc = state.exceptions[name];
+  return exc ? { ...base, ...exc.set } : base;
+}
+
+/* ==========================================================================
+   The mock primitives. Authored in a 24×24 box and driven by the traits.
+   Not the real ones; enough of them to judge whether the set moves together.
+   ========================================================================== */
+
+const R = (x, y, w, h, r = 0) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${Math.min(r, w/2, h/2)}"/>`;
+const L = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+const C = (cx, cy, r) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`;
+const P = (pts, close) => `<polyline points="${pts.map(p => p.join(",")).join(" ")}"${close ? ' class="z"' : ""}/>`;
+const PATH = d => `<path d="${d}"/>`;
+
+const SLOPE = { "45": 1, iso: 0.5, shallow: 0.32 };
+
+/**
+ * One opening, drawn the way the language says openings are drawn.
+ *
+ * Note for the review: using a single `aperture` trait for both a window and a
+ * door is already too blunt here, which is a small live example of why the
+ * trait list needs the property survey rather than my guesses.
+ */
+function opening(t, x, y, w, h) {
+  if (t.aperture === "line") return L(x, y, x + w, y);
+  if (t.aperture === "notch") return P([[x, y + h], [x, y], [x + w, y], [x + w, y + h]], false);
+  return R(x, y, w, h, Math.min(t.cornerRadius * 0.4, w / 2, h / 2));
+}
+/** A door is always an opening with no bottom: it meets the floor it stands on. */
+const doorway = (t, x, y, w, h) => P([[x, y + h], [x, y], [x + w, y], [x + w, y + h]], false);
+
+const PRIMS = {
+  building: t => {
+    const r = t.cornerRadius, pad = 24 * t.inset;
+    const rows = Math.max(1, Math.min(4, t.detailRows));
+    const out = [R(3, 1, 18, 22, r)];
+    const top = 4.5, span = 11;
+    for (let i = 0; i < rows; i++) {
+      const y = top + i * (span / rows);
+      out.push(opening(t, 5.5 + pad * .25, y, 3.5, 2.5), opening(t, 15 - pad * .25, y, 3.5, 2.5));
+    }
+    out.push(doorway(t, 10, 18, 4, 5));
+    return out;
+  },
+  warehouse: t => {
+    const rise = 8 * SLOPE[t.slope], eave = 10, pad = 24 * t.inset;
+    const out = [P([[2, 22], [2, eave], [12, eave - rise], [22, eave], [22, 22]], true)];
+    out.push(doorway(t, 6 + pad * .4, 14, 12 - pad * .8, 8));
+    if (t.detailRows >= 3) out.push(L(6 + pad * .4, 18, 18 - pad * .4, 18));
+    return out;
+  },
+  package: t => {
+    const d = 11 * SLOPE[t.slope];
+    const mid = 2 + 2 * d;
+    return [P([[12, 2], [22, 2 + d], [22, 22 - d], [12, 22], [2, 22 - d], [2, 2 + d]], true),
+            L(2, 2 + d, 12, mid), L(12, mid, 22, 2 + d), L(12, mid, 12, 22)];
+  },
+  document: t => {
+    const f = 9 * SLOPE[t.slope];
+    return [PATH(`M4 1 L${20 - f} 1 L20 ${1 + f} L20 23 L4 23 Z`),
+            P([[20 - f, 1], [20 - f, 1 + f], [20, 1 + f]], false)];
+  },
+  device: t => {
+    const r = t.cornerRadius, pad = Math.max(1.5, 22 * t.inset);
+    return [R(1, 3, 22, 14, r), opening(t, 1 + pad, 3 + pad, 22 - pad * 2, 14 - pad * 2),
+            L(12, 17, 12, 21), L(7, 21, 17, 21)];
+  },
+  vehicle: t => {
+    const r = t.cornerRadius, w = 2.6 * t.accentSize, s = 5 * SLOPE[t.slope];
+    return [R(1, 5, 12, 10, r),
+            PATH(`M13 8 L${22 - s} 8 L22 ${8 + s} L22 15 L13 15 Z`),
+            C(5, 17.5, w), C(18, 17.5, w)];
+  },
+  person: t => {
+    const hr = 4.2 * t.accentSize;
+    return [C(12, 3 + hr, hr), PATH(`M3.5 22 L3.5 19 A5.5 5.5 0 0 1 9 13.5 L15 13.5 A5.5 5.5 0 0 1 20.5 19 L20.5 22`)];
+  },
+  warning: t => {
+    const r = Math.min(t.cornerRadius * .5, 1.2), d = 1.1 * t.accentSize;
+    return [P([[12, 2], [22, 20], [2, 20]], true), R(11, 8, 2, 5.5, r), C(12, 16.6, d)];
+  },
+  clock: t => [C(12, 12, 10.5), P([[12, 6], [12, 12], [16, 16]], false), C(12, 12, 0.85 * t.accentSize)],
+  location: t => [PATH(`M12 22.5 C12 22.5 3.5 15 3.5 10 A8.5 8.5 0 0 1 20.5 10 C20.5 15 12 22.5 12 22.5 Z`),
+                  C(12, 10, 2.9 * t.accentSize)],
+  thermometer: t => [PATH(`M10 15.5 L10 4.5 A2 2 0 0 1 14 4.5 L14 15.5`), C(12, 18, 3.2 * t.accentSize)],
+  arrow: t => {
+    if (t.arrowhead === "closed") return [L(2, 12, 18, 12), P([[14, 6.5], [22, 12], [14, 17.5]], true)];
+    if (t.arrowhead === "chevron") return [L(2, 12, 21, 12), P([[16.5, 8], [20.5, 12], [16.5, 16]], false)];
+    return [L(2, 12, 21, 12), P([[14, 5.5], [21, 12], [14, 18.5]], false)];
+  },
+  check: t => t.arrowhead === "closed"
+    ? [P([[2.5, 13], [9, 19.5], [21.5, 5], [9, 15.5]], true)]
+    : [P([[2.5, 13], [9, 19.5], [21.5, 5]], false)],
+  snowflake: () => [90, 30, -30].map(d => {
+    const r = (d * Math.PI) / 180, dx = Math.cos(r) * 10.5, dy = Math.sin(r) * 10.5;
+    return L(12 - dx, 12 - dy, 12 + dx, 12 + dy);
+  }),
+  "rounded-rect": t => [R(2, 2, 20, 20, t.cornerRadius)],
+  circle: () => [C(12, 12, 10.5)],
+  square: () => [R(2.5, 2.5, 19, 19, 0)],
+  plus: () => [L(12, 3, 12, 21), L(3, 12, 21, 12)],
+};
+
+const CUSTOM = {
+  "dock-door": { draft: true, build: t => {
+    const r = t.cornerRadius, pad = 22 * t.inset;
+    return [R(2, 3, 20, 19, r), L(2, 7.5, 22, 7.5), doorway(t, 5 + pad * .3, 11, 14 - pad * .6, 11)];
+  } },
+  "pallet": { draft: true, build: t => {
+    const r = Math.min(t.cornerRadius, 2);
+    return [R(3, 6, 18, 6, r), L(6, 12, 6, 18), L(18, 12, 18, 18), L(3, 18, 21, 18), L(12, 12, 12, 18)];
+  } },
+  "cold-chain": { draft: false, build: t => {
+    const r = t.cornerRadius, a = 4.5 * t.accentSize;
+    const star = [90, 30, -30].map(d => {
+      const rad = (d * Math.PI) / 180;
+      return L(17 - Math.cos(rad) * a, 7 - Math.sin(rad) * a, 17 + Math.cos(rad) * a, 7 + Math.sin(rad) * a);
+    });
+    return [R(2, 10, 13, 12, r), ...star];
+  } },
+};
+
+/** Icons assembled from those parts: a subject with a badge in the corner. */
+const COMPOSED = [
+  ["cold-store", "warehouse", "snowflake"],
+  ["new-document", "document", "plus"],
+  ["fleet-status", "vehicle", "clock"],
+  ["site-alert", "building", "warning"],
+  ["delivered", "package", "check"],
+  ["account", "person", null],
+];
+
+/** Render one primitive at a pixel size, with the traits it actually sees. */
+function draw(name, px) {
+  const t = traitsFor(name);
+  const build = PRIMS[name] || CUSTOM[name]?.build;
+  if (!build) return "";
+  let w = state.tokens.strokeWidth;
+  // The 16px size carries a lighter stroke, the way an optical size does.
+  if (state.size === 16) w *= 0.85;
+  const body = build(t).join("");
+  return `<svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none" stroke="currentColor"
+    stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+/** A subject with a badge in the corner, the way the grammar composes one. */
+function drawComposed(subject, badge, px) {
+  let w = state.tokens.strokeWidth;
+  if (state.size === 16) w *= 0.85;
+  const sub = (PRIMS[subject] || CUSTOM[subject]?.build)(traitsFor(subject));
+  let body = badge
+    ? `<g transform="translate(0 3) scale(0.76)">${sub.join("")}</g>`
+      + `<g transform="translate(12.6 -0.4) scale(0.47)">${(PRIMS[badge])(traitsFor(badge)).join("")}</g>`
+    : sub.join("");
+  // A badge is drawn at a smaller scale, so its stroke has to be scaled back up
+  // to keep one weight across the icon. The real composer does this properly.
+  if (badge) body = body.replace('scale(0.76)"', 'scale(0.76)" stroke-width="' + (w / 0.76).toFixed(3) + '"')
+                        .replace('scale(0.47)"', 'scale(0.47)" stroke-width="' + (w / 0.47).toFixed(3) + '"');
+  return `<svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none" stroke="currentColor"
+    stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+/* ========================================================================== */
+/* Rendering the page                                                          */
+/* ========================================================================== */
+
+const $ = s => document.querySelector(s);
+const px = () => (state.size === 24 ? 44 : 30);
+
+function renderSheets() {
+  const focus = state.focusTrait ? TRAITS.find(t => t.id === state.focusTrait) : null;
+  const dimmed = n => focus && !focus.affects.includes(n);
+
+  $("#sheet").innerHTML = Object.keys(PRIMS).map(n => cell(n, dimmed(n))).join("");
+  $("#customSheet").innerHTML = Object.keys(CUSTOM).map(n => cell(n, dimmed(n), CUSTOM[n].draft)).join("");
+
+  $("#composedSheet").innerHTML = COMPOSED.map(([name, subj, badge]) => {
+    const dim = focus && !focus.affects.includes(subj) && !(badge && focus.affects.includes(badge));
+    const one = () => drawComposed(subj, badge, px());
+    const art = state.duo
+      ? `<div class="duo"><span class="on-light">${one()}</span><span class="on-dark">${one()}</span></div>`
+      : one();
+    return `<div class="cell ${dim ? "dim" : ""}" data-n="${subj}">${art}<div class="nm">${name}</div></div>`;
+  }).join("");
+
+  if (focus) {
+    $("#filterNote").style.display = "";
+    $("#filterNote").innerHTML = `<b>${focus.label}</b> is declared by ${focus.affects.length} parts. `
+      + `The rest are dimmed because this control cannot reach them.`;
+  } else {
+    $("#filterNote").style.display = "none";
+  }
+
+  document.querySelectorAll(".cell").forEach(el => {
+    el.onclick = () => {
+      // Selecting a part ends the trait preview, or the sheet stays dimmed
+      // behind the drawer and it reads like a bug.
+      state.focusTrait = null;
+      state.selected = state.selected === el.dataset.n ? null : el.dataset.n;
+      render();
+    };
+  });
+}
+
+/**
+ * One part. In compare mode it is drawn twice, on light and on dark, because
+ * judging an icon in one mode is judging half of it: the same stroke reads
+ * heavier as a light shape on a dark ground than the other way round, and a
+ * weight chosen on white alone will be wrong at night.
+ */
+function cell(n, dim, isDraft, drawer = draw) {
+  const exc = state.exceptions[n];
+  const art = state.duo
+    ? `<div class="duo"><span class="on-light">${drawer(n, px())}</span><span class="on-dark">${drawer(n, px())}</span></div>`
+    : drawer(n, px());
+  return `<div class="cell ${dim ? "dim" : ""} ${state.selected === n ? "sel" : ""}" data-n="${n}">
+    ${isDraft ? '<span class="draft">draft</span>' : ""}
+    ${exc ? '<span class="flag" title="has an exception"></span>' : ""}
+    ${art}<div class="nm">${n}</div></div>`;
+}
+
+function renderAxes() {
+  const { contrib } = derive();
+  const g = $("#axesGroup");
+  g.querySelectorAll(".ctrl").forEach(e => e.remove());
+  for (const a of AXES) {
+    const moves = Object.entries(contrib).filter(([, list]) => list.some(c => c.axis === a.id)).map(([t]) => t);
+    const el = document.createElement("div");
+    el.className = "ctrl";
+    el.innerHTML = `<div class="ctrl-head"><label>${a.lo} ↔ ${a.hi}</label><span class="val">${state.axes[a.id]}</span></div>
+      <input type="range" min="0" max="100" step="5" value="${state.axes[a.id]}">
+      <div class="affects">moves ${moves.length ? moves.map(m => `<b>${label(m)}</b>`).join(", ") : "nothing yet"}</div>`;
+    el.querySelector("input").oninput = e => { state.axes[a.id] = +e.target.value; render(); };
+    g.appendChild(el);
+  }
+}
+
+const label = id => (TRAITS.find(t => t.id === id) || {}).label || id;
+
+function renderTraits() {
+  const { contrib } = derive();
+  const eff = traits();
+  const g = $("#traitGroup");
+  g.querySelectorAll(".ctrl").forEach(e => e.remove());
+
+  for (const tr of TRAITS) {
+    const manual = tr.id in state.manual;
+    const v = eff[tr.id];
+    const el = document.createElement("div");
+    el.className = "ctrl";
+    const shown = tr.kind === "range" ? (tr.step < 1 ? (+v).toFixed(2) : v) + (tr.unit || "") : "";
+    el.innerHTML = `<div class="ctrl-head">
+        <label>${tr.label}</label>
+        <span class="val">${shown}</span>
+        <span class="badge ${manual ? "manual" : "derived"}">${manual ? "set by hand" : "derived"}</span>
+      </div>
+      ${tr.kind === "range"
+        ? `<input type="range" min="${tr.min}" max="${tr.max}" step="${tr.step}" value="${v}">`
+        : `<div class="seg">${tr.options.map(([val, lab]) =>
+            `<button data-v="${val}" class="${v === val ? "on" : ""}">${lab}</button>`).join("")}</div>`}
+      <div class="affects">${tr.affects.length} parts · ${tr.affects.slice(0, 3).map(a => `<b>${a}</b>`).join(", ")}${tr.affects.length > 3 ? " and more" : ""}
+        ${manual ? ` · <button class="reset">use the proposal</button>` : ""}</div>
+      ${contrib[tr.id] && !manual
+        ? `<div class="axis-contrib">${contrib[tr.id].map(c =>
+            `${c.axis} → ${typeof c.v === "number" ? c.v.toFixed(2) : c.v}`).join(" · ")}</div>` : ""}`;
+
+    const set = val => { state.manual[tr.id] = val; render(); };
+    if (tr.kind === "range") el.querySelector("input").oninput = e => set(+e.target.value);
+    else el.querySelectorAll(".seg button").forEach(b => b.onclick = () => set(b.dataset.v));
+    el.querySelector(".reset")?.addEventListener("click", () => { delete state.manual[tr.id]; render(); });
+
+    el.onmouseenter = () => { state.focusTrait = tr.id; renderSheets(); };
+    el.onmouseleave = () => { state.focusTrait = null; renderSheets(); };
+    g.appendChild(el);
+  }
+}
+
+function renderSimple(groupSel, list, store) {
+  const g = $(groupSel);
+  g.querySelectorAll(".ctrl").forEach(e => e.remove());
+  for (const c of list) {
+    const el = document.createElement("div");
+    el.className = "ctrl";
+    el.innerHTML = `<div class="ctrl-head"><label>${c.label}</label><span class="val">${store[c.id]}${c.unit}</span></div>
+      <input type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${store[c.id]}">`;
+    el.querySelector("input").oninput = e => { store[c.id] = +e.target.value; render(); };
+    g.appendChild(el);
+  }
+}
+
+/* The exception drawer. Allowed, but never quiet: you see it beside the set,
+   you say what you saw, and it is counted where everyone can find it. */
+function renderDrawer() {
+  const d = $("#drawer");
+  const n = state.selected;
+  if (!n) { d.style.display = "none"; return; }
+  d.style.display = "";
+
+  const exc = state.exceptions[n];
+  const mine = TRAITS.filter(t => t.affects.includes(n));
+  const globalTraits = traits();
+
+  d.innerHTML = `
+    <h4>${n}${exc ? ' <span style="color:var(--warn);font-size:12px">· has an exception</span>' : ""}</h4>
+    <p class="sub">Declares ${mine.length ? mine.map(t => t.label.toLowerCase()).join(", ") : "no shared traits, so nothing here reaches it"}.</p>
+    <div class="pair">
+      <figure>${duo(drawWith(n, globalTraits, 64))}<figcaption>the language</figcaption></figure>
+      <figure>${duo(draw(n, 64))}<figcaption>${exc ? "this exception" : "same, no exception"}</figcaption></figure>
+      <figure style="margin-left:auto;text-align:left;max-width:300px">
+        <div class="warn-box" style="margin:0">
+          An exception is allowed, and it is never silent. It shows here beside the set, it carries your reason,
+          and the audit counts it. If a part looks wrong at the language value, that is usually the value talking,
+          not the part.
+        </div>
+      </figure>
+    </div>
+    ${mine.map(t => {
+      const cur = (exc?.set || {})[t.id];
+      const has = cur !== undefined;
+      return `<div class="ctrl" data-t="${t.id}">
+        <div class="ctrl-head"><label>${t.label}</label>
+          <span class="val">${has ? fmt(cur) : fmt(globalTraits[t.id])}</span>
+          <span class="badge ${has ? "manual" : "derived"}">${has ? "exception" : "from the language"}</span></div>
+        ${t.kind === "range"
+          ? `<input type="range" min="${t.min}" max="${t.max}" step="${t.step}" value="${has ? cur : globalTraits[t.id]}">`
+          : `<div class="seg">${t.options.map(([v, l]) =>
+              `<button data-v="${v}" class="${(has ? cur : globalTraits[t.id]) === v ? "on" : ""}">${l}</button>`).join("")}</div>`}
+      </div>`;
+    }).join("")}
+    ${mine.length ? `<textarea rows="2" id="excWhy" placeholder="What did you see that the language value got wrong? Required, because an exception without a reason is drift.">${exc?.why || ""}</textarea>
+    <div class="actions">
+      <button class="ghost" id="clearExc">Use the language value</button>
+      <button class="primary" id="closeExc">Done</button>
+    </div>` : ""}`;
+
+  d.querySelectorAll(".ctrl[data-t]").forEach(row => {
+    const id = row.dataset.t, t = TRAITS.find(x => x.id === id);
+    const apply = val => {
+      const e = state.exceptions[n] ||= { set: {}, why: "" };
+      e.set[id] = val;
+      e.why = $("#excWhy")?.value || e.why;
+      render();
+    };
+    if (t.kind === "range") row.querySelector("input").oninput = e => apply(+e.target.value);
+    else row.querySelectorAll(".seg button").forEach(b => b.onclick = () => apply(b.dataset.v));
+  });
+  $("#clearExc")?.addEventListener("click", () => { delete state.exceptions[n]; render(); });
+  $("#closeExc")?.addEventListener("click", () => {
+    if (state.exceptions[n]) state.exceptions[n].why = $("#excWhy").value;
+    state.selected = null; render();
+  });
+}
+
+const fmt = v => (typeof v === "number" ? (Math.abs(v) < 10 ? v.toFixed(2) : v) : v);
+/** An exception has to survive both modes, so it is judged in both. */
+const duo = svg => state.duo
+  ? `<div class="duo"><span class="on-light">${svg}</span><span class="on-dark">${svg}</span></div>` : svg;
+
+/** Draw with an explicit trait set, ignoring exceptions. Used for before/after. */
+function drawWith(name, t, size) {
+  const build = PRIMS[name] || CUSTOM[name]?.build;
+  let w = state.tokens.strokeWidth;
+  if (state.size === 16) w *= 0.85;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor"
+    stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${build(t).join("")}</svg>`;
+}
+
+function renderFooter() {
+  const n = Object.keys(state.exceptions).length;
+  $("#excPill").textContent = n === 0
+    ? "No exceptions. Every part is drawn the way the language says."
+    : `⚠ ${n} exception${n > 1 ? "s" : ""}: ${Object.keys(state.exceptions).join(", ")}`;
+}
+
+function render() {
+  renderAxes();
+  renderTraits();
+  renderSimple("#tokenGroup", TOKENS, state.tokens);
+  renderSimple("#opticsGroup", OPTICS, state.optics);
+  renderSheets();
+  renderDrawer();
+  renderFooter();
+}
+
+document.querySelectorAll(".chip[data-size]").forEach(c => c.onclick = () => {
+  state.size = +c.dataset.size;
+  document.querySelectorAll(".chip[data-size]").forEach(x => x.classList.toggle("on", x === c));
+  $("#tokenGroup").querySelector("h3").textContent = "Tokens · " + state.size + "px";
+  render();
+});
+$("#duoToggle").onclick = e => {
+  state.duo = !state.duo;
+  e.target.classList.toggle("on", state.duo);
+  e.target.textContent = state.duo ? "Compare light and dark" : "Compare off";
+  render();
+};
+
+/* The app's own theme. A view preference, not part of the language: it says
+   nothing about the icons and must never reach the language file. */
+function setTheme(t) {
+  state.theme = t;
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll("#themeSeg button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  try { localStorage.setItem("if-theme", t); } catch {}
+}
+document.querySelectorAll("#themeSeg button").forEach(b => b.onclick = () => setTheme(b.dataset.t));
+let saved = "light";
+try { saved = localStorage.getItem("if-theme") || "light"; } catch {}
+setTheme(saved);
+
+render();
+</script>
+</body>
+</html>

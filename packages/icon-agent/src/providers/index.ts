@@ -49,15 +49,24 @@ export function fromLanguageModel(id: string, model: LanguageModel): AgentModel 
   };
 }
 
+/** Shared settings: a key when there is one, and a base URL when the user
+ * points us at a proxy or gateway rather than the vendor's own endpoint. */
+function settings(config: ModelConfig): { apiKey?: string; baseURL?: string } {
+  return {
+    ...(config.apiKey && { apiKey: config.apiKey }),
+    ...(config.baseURL && { baseURL: config.baseURL }),
+  };
+}
+
 export function createModel(config: ModelConfig): AgentModel {
   const id = `${config.provider}/${config.model}`;
   switch (config.provider) {
     case "anthropic":
-      return fromLanguageModel(id, createAnthropic({ ...(config.apiKey && { apiKey: config.apiKey }) })(config.model));
+      return fromLanguageModel(id, createAnthropic(settings(config))(config.model));
     case "openai":
-      return fromLanguageModel(id, createOpenAI({ ...(config.apiKey && { apiKey: config.apiKey }) })(config.model));
+      return fromLanguageModel(id, createOpenAI(settings(config))(config.model));
     case "google":
-      return fromLanguageModel(id, createGoogle({ ...(config.apiKey && { apiKey: config.apiKey }) })(config.model));
+      return fromLanguageModel(id, createGoogle(settings(config))(config.model));
     case "openai-compatible": {
       if (!config.baseURL) throw new Error("openai-compatible provider needs a baseURL");
       const provider = createOpenAICompatible({
@@ -72,35 +81,78 @@ export function createModel(config: ModelConfig): AgentModel {
 
 const KINDS: readonly ProviderKind[] = ["anthropic", "openai", "google", "openai-compatible"];
 
+const KEY_VARS: Record<Exclude<ProviderKind, "openai-compatible">, string> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openai: "OPENAI_API_KEY",
+  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+};
+
+/** Which vendor a key belongs to, by its prefix. Used only when nothing else says. */
+function providerFromKey(key: string): ProviderKind | undefined {
+  if (key.startsWith("sk-ant-")) return "anthropic";
+  if (key.startsWith("AIza")) return "google";
+  if (key.startsWith("sk-")) return "openai";
+  return undefined;
+}
+
 /**
  * Read a model configuration from environment variables.
  *
  *   ICON_FOUNDRY_PROVIDER   anthropic | openai | google | openai-compatible
- *   ICON_FOUNDRY_MODEL      model id (defaults exist for anthropic only)
+ *   ICON_FOUNDRY_MODEL      model id
  *   ICON_FOUNDRY_API_KEY    or the provider's usual variable
- *   ICON_FOUNDRY_BASE_URL   for openai-compatible endpoints
- *   ICON_FOUNDRY_NAME       display name for openai-compatible endpoints
+ *   ICON_FOUNDRY_BASE_URL   a proxy, a gateway, or a local endpoint
+ *   ICON_FOUNDRY_NAME       display name for an openai-compatible endpoint
  *
- * Returns undefined when no provider is configured, which means "planner only".
+ * The provider is inferred when it is not stated: from a vendor key variable,
+ * from the shape of a generic key, or from a base URL on its own. Pasting one
+ * key should be enough — asking for a provider as well is a trap, because a
+ * key that is present and unused looks exactly like a key that is working.
+ *
+ * Returns undefined only when nothing at all is configured, which means the
+ * deterministic planner runs and no model is called.
  */
 export function modelConfigFromEnv(env: Record<string, string | undefined>): ModelConfig | undefined {
-  const provider = env.ICON_FOUNDRY_PROVIDER as ProviderKind | undefined;
-  if (!provider) return undefined;
-  if (!KINDS.includes(provider)) throw new Error(`ICON_FOUNDRY_PROVIDER must be one of ${KINDS.join(", ")}`);
+  const stated = env.ICON_FOUNDRY_PROVIDER;
+  if (stated !== undefined && !KINDS.includes(stated as ProviderKind)) {
+    throw new Error(`ICON_FOUNDRY_PROVIDER must be one of ${KINDS.join(", ")} (got "${stated}")`);
+  }
+  const vendorKeyVar = (Object.keys(KEY_VARS) as Array<keyof typeof KEY_VARS>).find((k) => env[KEY_VARS[k]]);
+  const genericKey = env.ICON_FOUNDRY_API_KEY;
+  const baseURL = env.ICON_FOUNDRY_BASE_URL;
+
+  const provider =
+    (stated as ProviderKind | undefined) ??
+    vendorKeyVar ??
+    (genericKey ? providerFromKey(genericKey) : undefined) ??
+    (baseURL ? ("openai-compatible" as const) : undefined);
+
+  if (!provider) {
+    // Nothing configured at all is a valid state. A key we cannot place is not:
+    // silently ignoring it is how a key sits unused and nobody notices.
+    if (genericKey) {
+      throw new Error(
+        "ICON_FOUNDRY_API_KEY is set but the provider could not be determined from it. " +
+          `Set ICON_FOUNDRY_PROVIDER to one of ${KINDS.join(", ")}.`,
+      );
+    }
+    return undefined;
+  }
+
+  const apiKey = genericKey ?? (provider === "openai-compatible" ? undefined : env[KEY_VARS[provider]]);
   const model = env.ICON_FOUNDRY_MODEL ?? DEFAULT_MODELS[provider];
-  if (!model) throw new Error(`ICON_FOUNDRY_MODEL is required for provider "${provider}"`);
-  const fallbackKey = {
-    anthropic: env.ANTHROPIC_API_KEY,
-    openai: env.OPENAI_API_KEY,
-    google: env.GOOGLE_GENERATIVE_AI_API_KEY,
-    "openai-compatible": undefined,
-  }[provider];
-  const apiKey = env.ICON_FOUNDRY_API_KEY ?? fallbackKey;
+  if (!model) {
+    throw new Error(`ICON_FOUNDRY_MODEL is required for provider "${provider}" (no default is assumed for it)`);
+  }
+  if (provider === "openai-compatible" && !baseURL) {
+    throw new Error('Provider "openai-compatible" needs ICON_FOUNDRY_BASE_URL, for example http://localhost:11434/v1');
+  }
+
   return {
     provider,
     model,
     ...(apiKey && { apiKey }),
-    ...(env.ICON_FOUNDRY_BASE_URL && { baseURL: env.ICON_FOUNDRY_BASE_URL }),
+    ...(baseURL && { baseURL }),
     ...(env.ICON_FOUNDRY_NAME && { name: env.ICON_FOUNDRY_NAME }),
   };
 }

@@ -13,6 +13,8 @@ export const circlePrimitive = definePrimitive({
 
 export const squarePrimitive = definePrimitive({
   name: "square",
+  // Declines the corner radius on purpose: it is the sharp sibling of
+  // rounded-rectangle, and a set that wants round has one already.
   category: "shape",
   opticalShape: "square",
   description: "A sharp-cornered square.",
@@ -23,6 +25,7 @@ export const squarePrimitive = definePrimitive({
 
 export const roundedRectanglePrimitive = definePrimitive({
   name: "rounded-rectangle",
+  traits: ["cornerRadius"],
   category: "shape",
   opticalShape: "square",
   description: "A rectangle using the language corner radius.",

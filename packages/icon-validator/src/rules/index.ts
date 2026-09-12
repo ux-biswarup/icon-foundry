@@ -316,6 +316,38 @@ export const constructionRule = defineRule({
   },
 });
 
+/**
+ * Metaphors the language refuses. Every element carries keywords, so "we do not
+ * draw faces" can be checked rather than only asked for in a prompt — which
+ * moves one philosophy field off the model's goodwill and onto arithmetic.
+ */
+export const metaphorRule = defineRule({
+  id: "metaphor",
+  label: "Metaphors",
+  check: ({ spec, language, registry }) => {
+    const avoid = language.character.metaphors.avoid.map((m) => m.toLowerCase().trim()).filter(Boolean);
+    if (avoid.length === 0) return [];
+    const issues: ValidationIssue[] = [];
+    walk(spec.elements, "elements", (el, source) => {
+      if (!el.primitive || !registry.has(el.primitive)) return;
+      const primitive = registry.get(el.primitive);
+      const words = new Set([primitive.name, ...primitive.keywords].map((w) => w.toLowerCase()));
+      // Match a refused metaphor against the element's own words, allowing the
+      // plural a team is likely to have written ("faces" against "face").
+      const hit = avoid.find((m) => words.has(m) || words.has(m.replace(/s$/, "")) || words.has(`${m}s`));
+      if (hit) {
+        issues.push({
+          severity: "warning",
+          rule: "metaphor",
+          message: `"${primitive.name}" is a ${hit} metaphor, which this language refuses.`,
+          source,
+        });
+      }
+    });
+    return issues;
+  },
+});
+
 export const builtInRules: readonly ValidationRule[] = [
   canvasRule,
   styleRule,
@@ -329,4 +361,5 @@ export const builtInRules: readonly ValidationRule[] = [
   gridRule,
   negativeSpaceRule,
   constructionRule,
+  metaphorRule,
 ];

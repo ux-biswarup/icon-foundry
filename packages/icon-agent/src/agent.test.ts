@@ -108,3 +108,86 @@ describe("createIcon with a model", () => {
     expect(none.notes.join(" ")).toMatch(/Nothing in the vocabulary/);
   });
 });
+
+describe("concepts", () => {
+  /** A library in the default language, so concept lookups match its icons. */
+  const technicalLibrary = async () =>
+    Library.create(new MemoryStore(), { id: "acme", name: "Acme" });
+
+  const cold = {
+    id: "cold-storage",
+    name: "Cold storage",
+    aliases: ["refrigerated", "chilled"],
+    composition: {
+      arrangement: "badge" as const,
+      parts: [
+        { element: "warehouse", priority: "essential" as const },
+        { element: "snowflake", priority: "optional" as const },
+      ],
+    },
+  };
+
+  it("answers from the registry with no model call when the concept is already drawn", async () => {
+    const lib = await technicalLibrary();
+    await lib.saveConcept(cold);
+    await lib.save(
+      { name: "cold-store", language: "technical", canvas: 16, elements: [{ primitive: "warehouse", x: 1, y: 3, width: 14, height: 10 }] },
+      { concept: "cold-storage", status: "published" },
+    );
+    const never: AgentModel = { id: "never", run: async () => { throw new Error("the model must not be called"); } };
+    const result = await createIcon({ brief: { text: "we need something for the refrigerated depot" }, library: lib, model: never });
+    expect(result.model).toBe("registry");
+    expect(result.existing?.icon.spec.name).toBe("cold-store");
+    expect(result.candidates).toEqual([]);
+  });
+
+  it("compiles a known concept deterministically when it has no icon yet", async () => {
+    const lib = await technicalLibrary();
+    await lib.saveConcept(cold);
+    const result = await createIcon({ brief: { text: "chilled" }, library: lib });
+    expect(result.model).toBe("planner");
+    expect(result.candidates.length).toBeGreaterThan(0);
+    for (const c of result.candidates) {
+      expect(c.concept).toBe("cold-storage");
+      expect(c.validation.valid).toBe(true);
+      expect(c.spec.elements.map((e) => e.primitive)).toEqual(["warehouse", "snowflake"]);
+    }
+  });
+
+  it("lets a model record what a new concept is made of, and carries it to approval", async () => {
+    const lib = await technicalLibrary();
+    const fake: AgentModel = {
+      id: "fake",
+      async run({ tools }) {
+        const miss = (await call(tools, "resolve_concept", { text: "a server" })) as { found: boolean };
+        expect(miss.found).toBe(false);
+        await call(tools, "propose_concept", {
+          id: "server",
+          name: "Server",
+          aliases: ["host", "backend"],
+          composition: {
+            arrangement: "stack",
+            parts: [
+              { element: "rounded-rectangle", role: "unit", count: 2, priority: "essential" },
+              { element: "rounded-rectangle", role: "unit", count: 1, priority: "optional" },
+            ],
+          },
+        });
+        const laid = (await call(tools, "layout_from_concept", { concept: "server", name: "server" })) as { spec: unknown };
+        const drafted = (await call(tools, "draft_icon", {
+          spec: laid.spec,
+          rationale: "Two units stacked in the vertical keyline box, a third when the budget allows.",
+          concept: "server",
+        })) as { accepted: boolean };
+        expect(drafted.accepted).toBe(true);
+        return { text: "", steps: 4 };
+      },
+    };
+    const result = await createIcon({ brief: { text: "a server", canvas: 16 }, library: lib, model: fake });
+    const candidate = result.candidates[0]!;
+    expect(candidate.concept).toBe("server");
+    expect(candidate.newConcept?.composition.arrangement).toBe("stack");
+    expect(candidate.newConcept?.aliases).toEqual(["host", "backend"]);
+    expect(result.steps.map((s) => s.tool)[0]).toBe("resolve_concept");
+  });
+});

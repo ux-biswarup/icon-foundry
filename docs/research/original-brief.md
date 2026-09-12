@@ -1,3 +1,14 @@
+# The original brief
+
+> **Superseded, kept for the record.** This is the specification the
+> project started from. [PRODUCT.md](../PRODUCT.md) explicitly rejects its
+> framing of the problem — it opens with "a missing icon", which the
+> product document calls "a symptom, and the least interesting one". The
+> MVP scope and out-of-scope lists here are also out of date. Read it as
+> history.
+
+---
+
 # Icon Foundry — Agentic Coding Setup & MVP Specification
 
 ## Project

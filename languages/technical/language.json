@@ -38,7 +38,6 @@
   "grid": 0.5,
   "safeArea": 1,
   "stroke": { "width": 1.25, "cap": "round", "join": "round" },
-  "cornerRadius": 1.5,
   "minNegativeSpace": 1.5,
   "limits": { "maxElements": 3, "maxShapes": 10 },
 
@@ -52,7 +51,6 @@
       "grid": 0.5,
       "safeArea": 1.5,
       "stroke": { "width": 1.5 },
-      "cornerRadius": 2,
       "minNegativeSpace": 2,
       "limits": { "maxElements": 4, "maxShapes": 16 }
     }

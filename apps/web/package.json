@@ -14,7 +14,9 @@
   "dependencies": {
     "@icon-foundry/icon-agent": "workspace:*",
     "@icon-foundry/icon-ai": "workspace:*",
+    "@icon-foundry/icon-audit": "workspace:*",
     "@icon-foundry/icon-composer": "workspace:*",
+    "@icon-foundry/icon-export": "workspace:*",
     "@icon-foundry/icon-language": "workspace:*",
     "@icon-foundry/icon-library": "workspace:*",
     "@icon-foundry/icon-primitives": "workspace:*",

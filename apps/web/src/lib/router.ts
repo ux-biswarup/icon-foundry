@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 export type Route =
   | { page: "library"; name?: string }
   | { page: "create" }
-  | { page: "language" }
-  | { page: "elements" };
+  | { page: "language" };
 
 export function parseHash(hash: string): Route {
   const [page = "library", param] = hash.replace(/^#\/?/, "").split("/");
@@ -12,9 +11,10 @@ export function parseHash(hash: string): Route {
     case "create":
       return { page: "create" };
     case "language":
-      return { page: "language" };
+    // The vocabulary used to have a page of its own. It is part of the language
+    // now, so an old bookmark lands where its contents went rather than 404ing.
     case "elements":
-      return { page: "elements" };
+      return { page: "language" };
     default:
       return param ? { page: "library", name: decodeURIComponent(param) } : { page: "library" };
   }
