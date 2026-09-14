@@ -1,4 +1,4 @@
-import { composedBounds, topLevelIndex } from "@icon-foundry/icon-composer";
+import { composedBounds, inkBounds, topLevelIndex } from "@icon-foundry/icon-composer";
 import { hasSize } from "@icon-foundry/icon-language";
 import { closestPoints, isFiniteShape, offGrammarAngles, shapeDistance, type Point, type Shape } from "@icon-foundry/icon-primitives";
 import { elementBox, type IconElement } from "@icon-foundry/icon-spec";
@@ -93,9 +93,21 @@ export const geometryRule = defineRule({
   },
 });
 
+/**
+ * The live area: a target the drawing should reach, and may overshoot.
+ *
+ * A **warning**, not an error, and that is the whole point of the three rings.
+ * The keyline boxes are derived from this inset — the circle box *is* this
+ * inset — so a circular part drawn correctly has its centreline sitting exactly
+ * on this line. Treating the line as a fence would flag every well-drawn circle
+ * in the set. What is worth saying is the opposite: a drawing that stops well
+ * short of it will read small beside its neighbours.
+ *
+ * Measured on centrelines, because that is what a keyline is a line of.
+ */
 export const safeAreaRule = defineRule({
   id: "safeArea",
-  label: "Safe area",
+  label: "Live area",
   check: ({ tokens, composed }) => {
     if (!composed || composed.shapes.length === 0) return [];
     const b = composedBounds(composed);
@@ -105,9 +117,39 @@ export const safeAreaRule = defineRule({
     if (overflow <= EPS) return [];
     return [
       {
-        severity: "error",
+        severity: "warning",
         rule: "safeArea",
-        message: `Geometry leaves the ${tokens.safeArea}-unit safe area by ${overflow.toFixed(2)} units (bounds ${b.minX.toFixed(2)}, ${b.minY.toFixed(2)} → ${b.maxX.toFixed(2)}, ${b.maxY.toFixed(2)}).`,
+        message: `Centrelines pass the ${tokens.safeArea}-unit live area by ${overflow.toFixed(2)} units (bounds ${b.minX.toFixed(2)}, ${b.minY.toFixed(2)} → ${b.maxX.toFixed(2)}, ${b.maxY.toFixed(2)}). Ink may overhang the live edge; the drawing itself should not.`,
+        evidence: [{ kind: "bounds", bounds: b }],
+      },
+    ];
+  },
+});
+
+/**
+ * The trim: the line nothing crosses.
+ *
+ * The error half of the pair, and the one measured on **ink** rather than on
+ * centrelines — because what it is actually asking is whether any of the
+ * drawing falls off the edge of what will be composited, and half a stroke
+ * hanging into space is exactly that.
+ */
+export const trimRule = defineRule({
+  id: "trim",
+  label: "Trim",
+  check: ({ tokens, composed }) => {
+    if (!composed || composed.shapes.length === 0) return [];
+    const b = inkBounds(composed);
+    const min = tokens.trim;
+    const max = tokens.canvas - tokens.trim;
+    const overflow = Math.max(min - b.minX, min - b.minY, b.maxX - max, b.maxY - max);
+    if (overflow <= EPS) return [];
+    const edge = tokens.trim > 0 ? `${tokens.trim}-unit trim` : "canvas";
+    return [
+      {
+        severity: "error",
+        rule: "trim",
+        message: `Ink crosses the ${edge} by ${overflow.toFixed(2)} units (stroked bounds ${b.minX.toFixed(2)}, ${b.minY.toFixed(2)} → ${b.maxX.toFixed(2)}, ${b.maxY.toFixed(2)}). Half a stroke sits outside what will be drawn.`,
         evidence: [{ kind: "bounds", bounds: b }],
       },
     ];
@@ -373,6 +415,7 @@ export const builtInRules: readonly ValidationRule[] = [
   styleRule,
   geometryRule,
   safeAreaRule,
+  trimRule,
   strokeWidthRule,
   strokeCapRule,
   strokeJoinRule,

@@ -603,3 +603,54 @@ This is the fourth entry in the Language page's "Left to a person" list, and the
 reason it is there rather than in the rules is the one stated at the top of that
 list: implying an enforcement that does not exist is worse than admitting there
 is none.
+
+### A keyline is a target, and the safe area is the outermost keyline
+
+The question was whether icons are built *inside* the safe zone or *on* the
+keylines. The code had already answered it and nobody had written it down:
+`defaultOpticalBoxes` derives every box from `c = canvas − 2·safeArea`, and
+`circle = centred(c, c)`. **The circle keyline is the live area, exactly.** The
+other three are inset from it because a square presents more ink than a circle
+of equal width.
+
+So a part is drawn *to* its keyline. Cursor's account of the same system says it
+plainly — the four optical shapes are "sized so that icons built on different
+shapes still read as the same size", drawn to for optical equivalence rather
+than contained within. A circle "must be drawn slightly larger than a square to
+look equally big", which is only expressible if the box is a target.
+
+Apple's app-icon guidance is the opposite and the contrast is the useful part: an
+app icon is full-bleed artwork that a **system mask clips**, so a real keep-out
+zone exists and margin safety beats optical equality. Nothing clips a UI glyph,
+so the trade runs the other way. Two different problems; borrowing Apple's
+answer for our case would produce a set of timid icons.
+
+**Three rings, then**, which is also what Google M3 and IBM Carbon describe and
+what `docs/research/icon-properties.md` recommended:
+
+| Ring | Token | Measured on | Verdict |
+| --- | --- | --- | --- |
+| Live area | `safeArea` | centrelines | warning — it is a line to reach |
+| Padding | the gap between | — | sanctioned overhang, silent |
+| Trim | `trim` (default 0) | **ink** | error — nothing crosses |
+
+The severities are the substance. A circle drawn correctly has its centreline
+resting on the live edge and half a stroke past it, so the old rule — one hard
+inset, error, measured on centrelines — would have failed every well-drawn
+circle the moment anyone drew one to its keyline. What is worth saying there is
+the opposite: a drawing that stops short of the line reads small beside its
+neighbours.
+
+Only the trim is measured on ink, because it is the only one asking whether part
+of the drawing falls off the edge of what will be composited. `inkBounds` grows
+each centreline by half the stroke painting it, and by nothing for a filled
+shape, which is painted rather than stroked.
+
+This also fixed a studio bug the definition exposed: the fault gate tested
+centrelines while the hatch was drawn around strokes, so the mark could be
+several times the size of the finding, or absent while ink hung off the canvas.
+Each ring is now drawn the way it is measured.
+
+The agent prompt states it as a target too. Told to "keep inside the safe area",
+a model draws small and timid — the exact failure the keyline boxes exist to
+prevent.

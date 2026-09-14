@@ -592,17 +592,47 @@ export function subpathGaps(views: readonly SegmentView[], minimum: number): Gap
   return out;
 }
 
-/** Does any of the drawing leave the safe area? Cheap enough to run per frame. */
-export function leavesSafeArea(views: readonly SegmentView[], canvas: number, inset: number): boolean {
-  if (inset <= 0) return false;
-  const low = inset;
-  const high = canvas - inset;
+/**
+ * The three rings, as two questions.
+ *
+ * They are genuinely different questions and the studio used to conflate them:
+ * the gate was measured on centrelines and the hatch was drawn around strokes,
+ * so the picture could show a region several times the size of the thing that
+ * had actually been found — or show nothing while ink hung off the canvas.
+ *
+ * **Live area** is a target. The keyline boxes are derived from it and the
+ * circle box *is* it, so a circular part drawn correctly has its centreline
+ * resting on this line. Passing it is worth mentioning, not refusing.
+ *
+ * **Trim** is the edge of what will be drawn, and the only ring measured on the
+ * ink rather than the centreline — half a stroke hanging into space is exactly
+ * what it exists to catch. Between the two is padding, and overhanging into it
+ * is the correct behaviour rather than a tolerated one.
+ */
+function crosses(views: readonly SegmentView[], low: number, high: number, grow: number): boolean {
   for (const view of views) {
     for (const [x, y] of samples(view, 0.25)) {
-      if (x < low - 1e-6 || x > high + 1e-6 || y < low - 1e-6 || y > high + 1e-6) return true;
+      if (x - grow < low - 1e-6 || x + grow > high + 1e-6) return true;
+      if (y - grow < low - 1e-6 || y + grow > high + 1e-6) return true;
     }
   }
   return false;
+}
+
+/** Centrelines past the live edge. A remark, not a fault. */
+export function leavesLiveArea(views: readonly SegmentView[], canvas: number, inset: number): boolean {
+  if (inset <= 0) return false;
+  return crosses(views, inset, canvas - inset, 0);
+}
+
+/** Ink past the trim. The fault. */
+export function inkCrossesTrim(
+  views: readonly SegmentView[],
+  canvas: number,
+  trim: number,
+  strokeWidth: number,
+): boolean {
+  return crosses(views, trim, canvas - trim, strokeWidth / 2);
 }
 
 /* ------------------------------------------------------------------ */

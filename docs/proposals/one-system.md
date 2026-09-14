@@ -229,6 +229,14 @@ seen rather than parsed, and "any angle" is visibly the absence of a rule rather
 than a fourth option shaped like the other three. The three paragraphs above the
 controls are now three short lines: the controls were always the explanation.
 
+### Phase E — the three rings ✅
+
+`safeArea` meant two things: the box the keylines are derived from, and a fence
+nothing may cross. Those are different rules with different severities and
+different things to measure. Split into live area (centrelines, warning) and
+`trim` (ink, error), with sanctioned padding between. See the DECISIONS entry,
+"A keyline is a target, and the safe area is the outermost keyline".
+
 ### Then
 
 The grammar rules the user has in mind, onto a system that can hold them.

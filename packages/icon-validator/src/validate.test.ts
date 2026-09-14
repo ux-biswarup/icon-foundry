@@ -76,10 +76,41 @@ describe("validateIconSpec", () => {
     expect(rules(result)).toContain("canvas");
   });
 
-  it("flags safe-area violations using real geometry", () => {
+  /*
+   * The three rings: live area, padding, trim.
+   *
+   * The live area is a target the keyline boxes are derived from — the circle
+   * box *is* that inset — so a circular part drawn correctly has its centreline
+   * sitting exactly on the line and its ink half a stroke past it. Treating the
+   * line as a fence would fail every well-drawn circle in a set, which is why
+   * crossing it says something rather than refusing something.
+   */
+  it("warns when centrelines pass the live area, using real geometry", () => {
     const result = validateIconSpec(spec([{ primitive: "circle", x: 1, y: 1, size: 22 }]), lucideInspired);
+    const issue = result.issues.find((i) => i.rule === "safeArea");
+    expect(issue?.severity).toBe("warning");
+    expect(issue?.message).toMatch(/pass the 2-unit live area by 1.00/);
+    // Ink reaches 0 → 24 exactly, so nothing has fallen off the canvas.
+    expect(rules(result)).not.toContain("trim");
+    expect(result.valid).toBe(true);
+  });
+
+  it("says nothing at all about a part drawn exactly to its keyline", () => {
+    // The circle keyline is the live area, so this is the correct drawing —
+    // centreline on the line, ink overhanging into the padding by 0.75.
+    const result = validateIconSpec(spec([{ primitive: "circle", x: 2, y: 2, size: 20 }]), lucideInspired);
+    expect(rules(result)).not.toContain("safeArea");
+    expect(rules(result)).not.toContain("trim");
+  });
+
+  it("errors when the ink itself falls off the edge", () => {
+    // Centreline 0 → 24 is the canvas exactly, so a centreline rule sees
+    // nothing wrong; half a stroke of ink is nevertheless outside it.
+    const result = validateIconSpec(spec([{ primitive: "circle", x: 0, y: 0, size: 24 }]), lucideInspired);
+    const issue = result.issues.find((i) => i.rule === "trim");
+    expect(issue?.severity).toBe("error");
+    expect(issue?.message).toMatch(/Ink crosses the canvas by 0.75 units/);
     expect(result.valid).toBe(false);
-    expect(result.issues.find((i) => i.rule === "safeArea")?.message).toMatch(/leaves the 2-unit safe area by 1.00/);
   });
 
   it("does not flag safe area when a tall primitive is centred in a square box", () => {

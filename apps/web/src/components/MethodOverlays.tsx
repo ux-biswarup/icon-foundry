@@ -118,6 +118,8 @@ export function BackdropLayer({
           />
         ))}
 
+      {/* The live area, dashed, because it is a line to reach rather than a
+          line to stay off. The keyline above is derived from it. */}
       {show.safeArea && tokens.safeArea > 0 && (
         <rect
           className="mth-safe-area"
@@ -127,6 +129,19 @@ export function BackdropLayer({
           height={canvas - 2 * tokens.safeArea}
           strokeWidth={u}
           strokeDasharray={`${2 * u} ${2 * u}`}
+        />
+      )}
+
+      {/* The trim, solid, because nothing crosses it. Drawn only when it is
+          somewhere other than the canvas edge, which already has a line. */}
+      {show.safeArea && tokens.trim > 0 && (
+        <rect
+          className="mth-trim"
+          x={tokens.trim}
+          y={tokens.trim}
+          width={canvas - 2 * tokens.trim}
+          height={canvas - 2 * tokens.trim}
+          strokeWidth={u}
         />
       )}
 
@@ -340,28 +355,36 @@ export function CurveHandleLayer({ views, u }: { views: readonly SegmentView[]; 
 /* ------------------------------------------------------------------ */
 
 /**
- * Ink outside the safe area, hatched.
+ * The two rings a drawing can cross, each drawn the way it is measured.
  *
- * Drawn by masking rather than by clipping the geometry, so the hatch follows
- * the *stroke* and not the centreline. That distinction is the whole finding: a
- * centreline can sit comfortably inside the safe area while half the stroke
- * hangs over the edge, and an overlay that marked only the centreline would
- * call that icon clean.
+ * They were one layer and one test, and the two disagreed: the gate asked about
+ * centrelines and the picture hatched strokes, so the mark could be several
+ * times the size of the finding, or absent while ink hung off the canvas.
+ *
+ * Now each is drawn around the thing it is about. Passing the **live area** is
+ * marked on the centreline, in the warning colour, because the live area is a
+ * target the keylines are derived from and a circle drawn correctly rests on
+ * it. Crossing the **trim** is hatched around the stroke, in the fault colour,
+ * because that one really is about ink leaving the canvas.
  */
-export function SafeAreaBreachLayer({
+export function RingBreachLayer({
   views,
   tokens,
   canvas,
   uid,
+  pastLive,
+  pastTrim,
 }: {
   views: readonly SegmentView[];
   tokens: SizeTokens;
   canvas: number;
   uid: string;
+  pastLive: boolean;
+  pastTrim: boolean;
 }) {
-  if (tokens.safeArea <= 0) return null;
   const d = views.map((v) => v.d).join("");
-  const inset = tokens.safeArea;
+  if (!d || (!pastLive && !pastTrim)) return null;
+
   return (
     <g className="mth-breach" pointerEvents="none">
       <defs>
@@ -374,25 +397,56 @@ export function SafeAreaBreachLayer({
         >
           <line className="mth-breach-line" y2={0.6} strokeWidth={0.22} />
         </pattern>
-        <mask id={`${uid}-breach-mask`} maskUnits="userSpaceOnUse">
+
+        {/* Centreline past the live edge: masked around the *centreline*,
+            because that is what the question was about. Hatching the stroke
+            here was the old bug — it drew a region several times the size of
+            the thing that had been found. */}
+        <mask id={`${uid}-live-mask`} maskUnits="userSpaceOnUse">
+          <path d={d} stroke="#fff" strokeWidth={1.5 * (canvas / 480)} fill="none" />
+          <rect
+            x={tokens.safeArea}
+            y={tokens.safeArea}
+            width={canvas - 2 * tokens.safeArea}
+            height={canvas - 2 * tokens.safeArea}
+            fill="#000"
+            stroke="none"
+          />
+        </mask>
+
+        {/* Ink past the trim: masked around the stroke, because this one really
+            is about the ink. */}
+        <mask id={`${uid}-trim-mask`} maskUnits="userSpaceOnUse">
           <path d={d} stroke="#fff" strokeWidth={tokens.stroke.width} fill="none" />
           <rect
-            x={inset}
-            y={inset}
-            width={canvas - 2 * inset}
-            height={canvas - 2 * inset}
+            x={tokens.trim}
+            y={tokens.trim}
+            width={canvas - 2 * tokens.trim}
+            height={canvas - 2 * tokens.trim}
             fill="#000"
             stroke="none"
           />
         </mask>
       </defs>
-      <path
-        d={d}
-        fill="none"
-        strokeWidth={tokens.stroke.width}
-        stroke={`url(#${uid}-breach-hatch)`}
-        mask={`url(#${uid}-breach-mask)`}
-      />
+
+      {pastLive && tokens.safeArea > 0 && (
+        <path
+          className="mth-past-live"
+          d={d}
+          fill="none"
+          strokeWidth={4 * (canvas / 480)}
+          mask={`url(#${uid}-live-mask)`}
+        />
+      )}
+      {pastTrim && (
+        <path
+          d={d}
+          fill="none"
+          strokeWidth={tokens.stroke.width}
+          stroke={`url(#${uid}-breach-hatch)`}
+          mask={`url(#${uid}-trim-mask)`}
+        />
+      )}
     </g>
   );
 }

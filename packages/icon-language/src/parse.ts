@@ -529,6 +529,15 @@ function parseSize(value: Record<string, unknown>, path: string, base: SizeToken
   const canvas = num(value.canvas, `${path}.canvas`, { exclusiveMin: 0 });
   const safeArea = value.safeArea === undefined ? base.safeArea : num(value.safeArea, `${path}.safeArea`, { min: 0 });
   if (safeArea * 2 >= canvas) fail(`${path}.safeArea`, "safe area leaves no room on the canvas");
+  // Scaled from the primary rather than copied, like every other length: a trim
+  // of 1 on a 16 canvas and a trim of 1 on a 32 are different rules.
+  const trim =
+    value.trim === undefined
+      ? (base.trim * canvas) / base.canvas
+      : num(value.trim, `${path}.trim`, { min: 0 });
+  if (trim > safeArea) {
+    fail(`${path}.trim`, "trim sits inside the live area, which leaves the padding nowhere to go");
+  }
   // An absent token is derived for *this* size, not copied from the primary.
   const here = scaleDerived(derived, base.canvas, canvas);
   const strokeBase: StrokeTokens = {
@@ -542,6 +551,7 @@ function parseSize(value: Record<string, unknown>, path: string, base: SizeToken
     canvas,
     grid,
     safeArea,
+    trim,
     stroke: strokeHere,
     cornerRadius:
       value.cornerRadius === undefined
@@ -631,6 +641,10 @@ export function parseIconLanguage(value: unknown): IconLanguage {
   const canvas = num(input.canvas, "language.canvas", { exclusiveMin: 0 });
   const safeArea = num(input.safeArea, "language.safeArea", { min: 0 });
   if (safeArea * 2 >= canvas) fail("language.safeArea", "safe area leaves no room on the canvas");
+  const trim = input.trim === undefined ? 0 : num(input.trim, "language.trim", { min: 0 });
+  if (trim > safeArea) {
+    fail("language.trim", "trim sits inside the live area, which leaves the padding nowhere to go");
+  }
   const derived = deriveTokens(character, derivation, canvas);
   const grammar = parseGrammar(input.grammar, "language.grammar", pickNumber(derived, "badgeRatio", DEFAULT_GRAMMAR.badge.ratio));
 
@@ -645,6 +659,7 @@ export function parseIconLanguage(value: unknown): IconLanguage {
     canvas,
     grid,
     safeArea,
+    trim,
     stroke: primaryStroke,
     cornerRadius:
       input.cornerRadius === undefined
@@ -749,6 +764,11 @@ function sizeInput(tokens: SizeTokens, derived: DerivedTokens, base: SizeTokens)
     minNegativeSpace: tokens.minNegativeSpace,
   };
   if (tokens.minCutout !== tokens.stroke.width) out.minCutout = tokens.minCutout;
+  // Absent means "the primary's, scaled to this size", which is what parsing
+  // does with it. Writing the scaled value back would turn a derived token into
+  // a stated one, and the next change to the primary would stop reaching here.
+  const scaledTrim = (base.trim * tokens.canvas) / base.canvas;
+  if (Math.abs(tokens.trim - scaledTrim) > 1e-9) out.trim = tokens.trim;
   // A token equal to what the axes propose is left out: absent means derived.
   if (tokens.cornerRadius !== pickNumber(here, "cornerRadius", NaN)) out.cornerRadius = tokens.cornerRadius;
   const limits = limitsInput(tokens.limits, here);
@@ -800,6 +820,7 @@ export function serializeIconLanguage(language: IconLanguage): IconLanguageInput
     canvas: defaultTokens.canvas,
     grid: defaultTokens.grid,
     safeArea: defaultTokens.safeArea,
+    ...(defaultTokens.trim > 0 && { trim: defaultTokens.trim }),
     stroke: strokeInput(defaultTokens.stroke, derived),
     style: {
       default: language.style.default,

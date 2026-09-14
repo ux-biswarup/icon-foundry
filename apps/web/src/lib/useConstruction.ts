@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import {
   filletViews,
   jointViews,
-  leavesSafeArea,
+  inkCrossesTrim,
+  leavesLiveArea,
   nearMisses,
   segmentViews,
   subpathGaps,
@@ -32,7 +33,10 @@ export interface Construction {
   fillets: FilletView[];
   misses: NearMiss[];
   gaps: Gap[];
-  breached: boolean;
+  /** Centrelines past the live edge — worth saying, not worth refusing. */
+  pastLive: boolean;
+  /** Ink past the trim, which is the fault. */
+  pastTrim: boolean;
 }
 
 export function useConstruction(
@@ -73,10 +77,14 @@ export function useConstruction(
     () => (faults ? subpathGaps(views, tokens.minNegativeSpace) : []),
     [views, tokens.minNegativeSpace, faults],
   );
-  const breached = useMemo(
-    () => faults && leavesSafeArea(views, canvas, tokens.safeArea),
+  const pastLive = useMemo(
+    () => faults && leavesLiveArea(views, canvas, tokens.safeArea),
     [views, canvas, tokens.safeArea, faults],
   );
+  const pastTrim = useMemo(
+    () => faults && inkCrossesTrim(views, canvas, tokens.trim, tokens.stroke.width),
+    [views, canvas, tokens.trim, tokens.stroke.width, faults],
+  );
 
-  return { views, joints, fillets, misses, gaps, breached };
+  return { views, joints, fillets, misses, gaps, pastLive, pastTrim };
 }

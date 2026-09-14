@@ -185,6 +185,10 @@ export function IconConstruction({
             <dd>{measured.misses.length}</dd>
             <dt>Gaps under the minimum</dt>
             <dd>{measured.gaps.length}</dd>
+            <dt>Reaches the live area</dt>
+            <dd>{measured.pastLive ? "past it" : "within"}</dd>
+            <dt>Ink inside the trim</dt>
+            <dd>{measured.pastTrim ? "crosses" : "yes"}</dd>
           </dl>
           {edited ? (
             <p className="locked-note">

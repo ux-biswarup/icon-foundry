@@ -335,6 +335,27 @@ export function composedBounds(icon: ComposedIcon): Bounds {
   return unionBounds(icon.shapes.map((s) => shapeBounds(s.shape)));
 }
 
+/**
+ * Bounds of the *ink*: every centreline grown by half the stroke painting it.
+ *
+ * The distinction the three rings turn on. A part drawn correctly to its
+ * keyline has a centreline that reaches the live edge and ink that overhangs it
+ * by half a stroke, so a rule measured on centrelines and a rule measured on
+ * ink are asking genuinely different questions — and the one that asks whether
+ * anything falls off the canvas has to ask this one.
+ *
+ * A filled shape is painted rather than stroked, so it grows by nothing.
+ */
+export function inkBounds(icon: ComposedIcon): Bounds {
+  return unionBounds(
+    icon.shapes.map((item) => {
+      const b = shapeBounds(item.shape);
+      const half = item.style === "filled" && item.shape.fillable ? 0 : item.stroke.width / 2;
+      return { minX: b.minX - half, minY: b.minY - half, maxX: b.maxX + half, maxY: b.maxY + half };
+    }),
+  );
+}
+
 export {
   applyOptics,
   opticsEnabled,

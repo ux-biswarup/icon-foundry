@@ -83,8 +83,31 @@ export interface SizeTokens {
   canvas: number;
   /** Layout grid step for element boxes. Not a pixel-snapping rule. */
   grid: number;
-  /** Padding from the canvas edge that geometry centrelines should not enter. */
+  /**
+   * The live area, as an inset from the canvas edge.
+   *
+   * **A target, not a fence.** The four keyline boxes are derived from it — the
+   * circle box *is* this inset exactly, and the others sit inside it — so a
+   * part drawn to its keyline has its centreline reaching the live edge and its
+   * ink overhanging by half a stroke. That overhang is sanctioned, and it is
+   * why crossing this line is a warning rather than an error: the rule is
+   * "reach this", not "stay off it".
+   *
+   * Measured on centrelines, because that is what a keyline is.
+   */
   safeArea: number;
+  /**
+   * The trim, as an inset from the canvas edge. **No ink may cross it.**
+   *
+   * The outer of the three rings the live area implies: live → padding → trim.
+   * Between `safeArea` and this is the padding a stroke is allowed to overhang
+   * into; past this there is nothing, which is why this one is an error and
+   * measured on the *stroke* rather than on the centreline.
+   *
+   * Zero — the canvas edge — is the honest default. A set that is composited
+   * against something that crops it wants a real number here.
+   */
+  trim: number;
   stroke: StrokeTokens;
   cornerRadius: number;
   limits: DetailLimits;
@@ -397,6 +420,7 @@ export interface SizeInput {
   canvas: number;
   grid?: number;
   safeArea?: number;
+  trim?: number;
   stroke?: Partial<StrokeTokens>;
   cornerRadius?: number;
   limits?: Partial<DetailLimits>;
@@ -427,6 +451,8 @@ export interface IconLanguageInput {
   canvas: number;
   grid: number;
   safeArea: number;
+  /** Inset from the canvas edge that no ink may cross. Defaults to 0. */
+  trim?: number;
   stroke: { width: number; cap?: StrokeCap; join?: StrokeJoin };
   /** Omit to derive from the personality axes. Present means an override. */
   cornerRadius?: number;

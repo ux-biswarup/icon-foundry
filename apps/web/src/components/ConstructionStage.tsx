@@ -23,7 +23,7 @@ import {
   NearMissLayer,
   RadiiLayer,
   RecognisedLayer,
-  SafeAreaBreachLayer,
+  RingBreachLayer,
 } from "./MethodOverlays.js";
 
 /**
@@ -133,7 +133,7 @@ export function ConstructionStage({
   const stage = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag>();
   const [menu, setMenu] = useState<{ x: number; y: number }>();
-  const { views, joints, fillets, misses, gaps, breached } = measured;
+  const { views, joints, fillets, misses, gaps, pastLive, pastTrim } = measured;
 
   const u = canvas / size;
   const pickedVertices = verticesOf(skeleton, picked);
@@ -345,7 +345,16 @@ export function ConstructionStage({
         />
 
         {layers.ink && <InkLayer views={views} tokens={tokens} />}
-        {layers.faults && breached && <SafeAreaBreachLayer views={views} tokens={tokens} canvas={canvas} uid={uid} />}
+        {layers.faults && (
+          <RingBreachLayer
+            views={views}
+            tokens={tokens}
+            canvas={canvas}
+            uid={uid}
+            pastLive={pastLive}
+            pastTrim={pastTrim}
+          />
+        )}
         {layers.colour && <ColouredLayer views={views} u={u} />}
 
         {/* The selection, under the control line rather than over it, so

@@ -45,6 +45,11 @@
       "type": "number",
       "minimum": 0
     },
+    "trim": {
+      "description": "Inset from the canvas edge that no ink may cross. Between safeArea and this is the padding a stroke may overhang into. Defaults to 0, the canvas edge.",
+      "type": "number",
+      "minimum": 0
+    },
     "stroke": {
       "$ref": "#/$defs/stroke",
       "required": [
@@ -154,6 +159,11 @@
             "exclusiveMinimum": 0
           },
           "safeArea": {
+            "type": "number",
+            "minimum": 0
+          },
+          "trim": {
+            "description": "Inset from the canvas edge that no ink may cross. Scaled from the primary size when omitted.",
             "type": "number",
             "minimum": 0
           },

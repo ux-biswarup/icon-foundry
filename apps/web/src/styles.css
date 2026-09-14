@@ -580,6 +580,9 @@ button.small { font-size: 11px; padding: 3px 8px; }
 .mth-grid-sub { stroke: var(--line); opacity: .7; }
 .mth-keyline { stroke: var(--accent); opacity: .3; }
 .mth-safe-area { stroke: var(--fg-2); opacity: .55; }
+/* Solid, because nothing crosses it — as against the dashed live area, which
+   is a line to reach. */
+.mth-trim { stroke: var(--err); opacity: .45; fill: none; }
 .mth-canvas-edge { stroke: var(--line); }
 
 /* --- The drawing ------------------------------------------------------- */
@@ -616,6 +619,9 @@ button.small { font-size: 11px; padding: 3px 8px; }
 
 /* --- Faults win. A fault the drawing can hide is a fault that ships. --- */
 .mth-breach-line { stroke: var(--err); }
+/* Passing the live edge is a remark, so it wears the warning colour and marks
+   the centreline. Crossing the trim is a fault, and gets the red hatch. */
+.mth-past-live { stroke: var(--warn); opacity: .85; stroke-linecap: round; }
 .mth-gap-line { stroke: var(--err); fill: none; opacity: .8; }
 .mth-gap-dot { fill: var(--err); stroke: none; opacity: .8; }
 .mth-miss-from { fill: var(--err); fill-opacity: .5; stroke: var(--err); }

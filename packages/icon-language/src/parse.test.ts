@@ -497,3 +497,52 @@ describe("construction exceptions", () => {
     expect(serializeIconLanguage(parseIconLanguage(base)).construction).toBeUndefined();
   });
 });
+
+describe("the three rings", () => {
+  const base = {
+    id: "rings",
+    name: "Rings",
+    version: "1.0.0",
+    canvas: 24,
+    grid: 0.5,
+    safeArea: 2,
+    stroke: { width: 1.5 },
+    style: { default: "outline" as const },
+  };
+
+  it("defaults the trim to the canvas edge", () => {
+    // The honest default: nothing crosses the canvas. A set composited against
+    // something that crops it wants a real number, and has to say so.
+    expect(parseIconLanguage(base).sizes[24]?.trim).toBe(0);
+  });
+
+  it("keeps the live area as the box the keylines are derived from", () => {
+    // The property the whole model rests on: the circle keyline *is* the live
+    // area, which is why resting on that line is correct rather than a fault.
+    const tokens = parseIconLanguage(base).sizes[24]!;
+    expect(tokens.optical.circle.x).toBe(tokens.safeArea);
+    expect(tokens.optical.circle.width).toBe(tokens.canvas - 2 * tokens.safeArea);
+  });
+
+  it("refuses a trim that leaves the padding nowhere to go", () => {
+    expect(() => parseIconLanguage({ ...base, trim: 3 })).toThrow(/padding nowhere/);
+  });
+
+  it("scales the trim to each optical size instead of copying it", () => {
+    // A trim of 1 on a 24 canvas and a trim of 1 on a 48 are different rules.
+    const language = parseIconLanguage({ ...base, trim: 1, sizes: [{ canvas: 48 }] });
+    expect(language.sizes[24]?.trim).toBe(1);
+    expect(language.sizes[48]?.trim).toBe(2);
+  });
+
+  it("writes a stated trim back and leaves a derived one out", () => {
+    const language = parseIconLanguage({ ...base, trim: 1, sizes: [{ canvas: 48 }] });
+    const written = serializeIconLanguage(language) as unknown as Record<string, unknown>;
+    expect(written.trim).toBe(1);
+    // The 48 inherited its trim by scaling, so writing the scaled number back
+    // would freeze it and the next change to the primary would stop reaching it.
+    const sizes = written.sizes as Array<Record<string, unknown>>;
+    expect(sizes[0]?.trim).toBeUndefined();
+    expect(parseIconLanguage(written).sizes[48]?.trim).toBe(2);
+  });
+});

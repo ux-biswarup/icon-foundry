@@ -43,7 +43,12 @@ export function systemPrompt(language: IconLanguage, canvas?: number): string {
     "- Freeform curves are extremely rare in this set. Use one only when the concept has no straight-segment reading at all, and say which one and why.",
     "- Never write an arc to round a corner. A corner you round by hand is a corner that stops matching the rest of the set the next time the language changes.",
     "",
-    `Designing at ${tokens.canvas}px: safe area ${tokens.safeArea}, layout grid ${tokens.grid}, stroke ${tokens.stroke.width} with ${tokens.stroke.cap} caps and ${tokens.stroke.join} joins.`,
+    `Designing at ${tokens.canvas}px: layout grid ${tokens.grid}, stroke ${tokens.stroke.width} with ${tokens.stroke.cap} caps and ${tokens.stroke.join} joins.`,
+    // Stated as a target rather than a margin on purpose. Told "keep inside the
+    // safe area", a model draws small and timid, and a set of timid icons is
+    // the failure the keyline boxes exist to prevent.
+    `Size against the keyline box for the part's optical shape — fill it. The live area is ${tokens.safeArea} units in from the edge and the keyline boxes are derived from it, so reaching that line is right, not risky. Ink may overhang it by half a stroke.`,
+    `Nothing crosses the trim at ${tokens.trim} units from the edge, ink included.`,
     `Budget: at most ${tokens.limits.maxElements} parts and ${tokens.limits.maxShapes} shapes. If a detail disappears at the smallest size, leave it out.`,
     "",
     "You work by calling tools. You never output SVG or geometry in text; you draft through draft_icon.",

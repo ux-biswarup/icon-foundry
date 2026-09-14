@@ -176,7 +176,7 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
     showRounded,
     faults: layers.faults,
   });
-  const { joints, fillets, misses, gaps } = measured;
+  const { joints, fillets, misses, gaps, pastLive, pastTrim } = measured;
 
   /**
    * Whether this drawing turns out to be something the set already owns.
@@ -504,6 +504,10 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
               <dd>{misses.length}</dd>
               <dt>Gaps under the minimum</dt>
               <dd>{gaps.length}</dd>
+              <dt>Reaches the live area</dt>
+              <dd>{pastLive ? "past it" : "within"}</dd>
+              <dt>Ink inside the trim</dt>
+              <dd>{pastTrim ? "crosses" : "yes"}</dd>
             </dl>
 
             {recognition && (

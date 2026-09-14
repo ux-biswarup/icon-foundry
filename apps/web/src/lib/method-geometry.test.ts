@@ -9,7 +9,8 @@ import {
   filletViews,
   invert,
   jointViews,
-  leavesSafeArea,
+  inkCrossesTrim,
+  leavesLiveArea,
   mapPoint,
   mapSkeleton,
   nearMisses,
@@ -179,11 +180,32 @@ describe("faults", () => {
     expect(subpathGaps(single, 1.5)).toHaveLength(0);
   });
 
-  it("catches ink leaving the safe area", () => {
-    const inside = segmentViews(skeletonFromPathData(["M2 2 L14 2"]), technical);
-    const outside = segmentViews(skeletonFromPathData(["M0.5 0.5 L14 2"]), technical);
-    expect(leavesSafeArea(inside, 16, 1)).toBe(false);
-    expect(leavesSafeArea(outside, 16, 1)).toBe(true);
+  it("separates reaching the live edge from falling off the canvas", () => {
+    /*
+     * The two rings ask different questions, and conflating them was the bug.
+     * A drawing resting exactly on the live edge is drawn *correctly* — the
+     * circle keyline is that line — but half its stroke is past it, and a rule
+     * that measured ink against the live edge would fail every circle in a set.
+     */
+    const onTheLine = segmentViews(skeletonFromPathData(["M1 1 L15 1"]), technical);
+    expect(leavesLiveArea(onTheLine, 16, 1)).toBe(false);
+    // Its ink reaches 0.375, past the live edge and well inside the canvas.
+    expect(inkCrossesTrim(onTheLine, 16, 0, 1.25)).toBe(false);
+
+    const past = segmentViews(skeletonFromPathData(["M0.5 0.5 L14 2"]), technical);
+    expect(leavesLiveArea(past, 16, 1)).toBe(true);
+
+    // Only the trim catches ink actually leaving the canvas.
+    const offEdge = segmentViews(skeletonFromPathData(["M0 8 L15 8"]), technical);
+    expect(leavesLiveArea(offEdge, 16, 1)).toBe(true);
+    expect(inkCrossesTrim(offEdge, 16, 0, 1.25)).toBe(true);
+  });
+
+  it("measures the trim against ink, so a centreline on the edge still fails", () => {
+    // Centreline 0 → 16 is the canvas exactly. A centreline rule sees nothing.
+    const edge = segmentViews(skeletonFromPathData(["M0 8 L16 8"]), technical);
+    expect(inkCrossesTrim(edge, 16, 0, 0)).toBe(false);
+    expect(inkCrossesTrim(edge, 16, 0, 1.25)).toBe(true);
   });
 });
 
