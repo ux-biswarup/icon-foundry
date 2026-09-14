@@ -8,6 +8,15 @@ import type { IconLanguage } from "./types.js";
 
 export * from "./types.js";
 export {
+  DIAGONAL_ANGLES,
+  diagonalAngle,
+  oppositeDiagonal,
+  leanOf,
+  directionName,
+  cornerOf,
+  cornerName,
+} from "./direction.js";
+export {
   AXIS_NAMES,
   DERIVABLE,
   DEFAULT_DERIVATION,

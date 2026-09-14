@@ -29,6 +29,8 @@ export const checkPrimitive = definePrimitive({
   category: "symbol",
   opticalShape: "horizontal",
   description: "A check mark.",
+  // A glyph. A mirrored tick is not a tick.
+  freeDirection: true,
   box: { width: 24, height: 17 },
   keywords: ["check", "done", "complete", "approved", "confirmed", "success", "ok", "verified"],
   build: () => [polyline([[0, 10], [7, 17], [24, 0]], false, false)],
@@ -138,6 +140,8 @@ export const clockPrimitive = definePrimitive({
   category: "symbol",
   opticalShape: "circle",
   description: "A clock face with hands.",
+  // The hands lean because they read a time.
+  freeDirection: true,
   box: { width: 24, height: 24 },
   keywords: ["clock", "time", "schedule", "duration", "hours", "deadline", "timer", "history"],
   build: (ctx) => {

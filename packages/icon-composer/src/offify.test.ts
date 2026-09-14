@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseIconLanguage, resolveTokens, serializeIconLanguage, technical } from "@icon-foundry/icon-language";
+import { DIAGONAL_ANGLES, parseIconLanguage, resolveTokens, serializeIconLanguage, technical } from "@icon-foundry/icon-language";
 import { parseIconSpec } from "@icon-foundry/icon-spec";
 import { isInsideBand, sampleShape, pathShapeFromData } from "@icon-foundry/icon-primitives";
 import { compose } from "./index.js";
@@ -18,13 +18,25 @@ const points = (spec: ReturnType<typeof offify>) =>
 const partsOf = (spec: ReturnType<typeof offify>) => spec.elements ?? [];
 
 describe("the slash", () => {
-  it("runs the way the grammar's diagonals lean", () => {
-    expect(slashAngle(technical)).toBe(45);
+  it("cuts against the way the grammar's diagonals lean", () => {
+    // technical runs up-right, so its slash is the up-left one: 45° in the
+    // 0–180, y-down convention, which is the top-left to bottom-right stroke
+    // Lucide hardcodes. A set that leans the other way gets the other slash.
+    expect(technical.grammar.diagonal).toBe("up-right");
+    expect(slashAngle(technical)).toBe(DIAGONAL_ANGLES["up-left"]);
     const other = parseIconLanguage({
       ...serializeIconLanguage(technical),
       grammar: { ...technical.grammar, diagonal: "up-left" },
     });
-    expect(slashAngle(other)).toBe(135);
+    expect(slashAngle(other)).toBe(DIAGONAL_ANGLES["up-right"]);
+  });
+
+  it("still picks a slash for a set that states no lean", () => {
+    const neutral = parseIconLanguage({
+      ...serializeIconLanguage(technical),
+      grammar: { ...technical.grammar, diagonal: "none" },
+    });
+    expect(slashAngle(neutral)).toBe(DIAGONAL_ANGLES["up-left"]);
   });
 
   it("never picks an angle the language forbids", () => {

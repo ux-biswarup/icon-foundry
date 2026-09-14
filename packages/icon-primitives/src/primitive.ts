@@ -41,6 +41,18 @@ export interface Primitive {
    */
   freeAngles?: boolean;
   /**
+   * True when the shape's concept fixes which way its diagonals run, so the
+   * direction rule leaves it alone.
+   *
+   * The sibling of `freeAngles`, and for the same reason. A set states one
+   * direction for the diagonals that *could* go either way; a document's folded
+   * corner could not, a clock's hands read a time, a tick is a glyph you cannot
+   * mirror, and a truck faces the way it faces. Declared once here and reviewed
+   * by a human, so the rule polices what actually drifts — freeform geometry
+   * and composition — instead of firing on four built-ins forever.
+   */
+  freeDirection?: boolean;
+  /**
    * Language values this primitive's geometry reads.
    *
    * A declaration, not a hint. If a primitive names a value here, changing that

@@ -238,12 +238,19 @@ meaning "more". The general mechanism is a role passed into the primitive,
 which the primitive context is already shaped to carry. One small
 generalisation, not a taxonomy of dot types.
 
-**Directionality should stay unenforced.** It is real, and it is genuinely
-brand. But a mechanical check cannot tell which diagonal in a twelve-segment
-icon is "the" diagonal, so it would fire on icons that are fine. A rule that
-cries wolf teaches people to ignore rules, which is precisely the decay we
-exist to prevent. State it, give it to the agent, show it in review, do not
-gate on it.
+**Directionality should stay unenforced** — the objection was right, and the
+way past it was to stop trying to find "the" diagonal. A mechanical check
+cannot tell which diagonal in a twelve-segment icon is the one that matters,
+and a rule that cries wolf teaches people to ignore rules, which is precisely
+the decay we exist to prevent. So the rule does not look for one diagonal. It
+weighs the diagonal ink each way and speaks only when a drawing has a lean
+rather than a pair of them: a triangle's two sides cancel and it says nothing,
+an arrow's shaft and both barbs agree and it does. The four built-ins whose
+concept fixes their diagonals — a document's fold, a clock's hands, a tick, a
+truck — declare it once in the vocabulary, exactly as they already declare free
+angles. What is left for the rule to police is what actually drifts: freeform
+geometry and composition. It warns rather than refuses, because it is checking
+a convention and a convention has exceptions a person is entitled to make.
 
 **"Encode grammar, not style" understates the vocabulary.** Grammar constrains
 how you draw. Vocabulary decides whether you have to draw at all. The

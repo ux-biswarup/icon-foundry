@@ -1,6 +1,23 @@
 import { composedBounds, inkBounds, topLevelIndex } from "@icon-foundry/icon-composer";
-import { hasSize } from "@icon-foundry/icon-language";
-import { closestPoints, isFiniteShape, offGrammarAngles, shapeDistance, type Point, type Shape } from "@icon-foundry/icon-primitives";
+import {
+  cornerName,
+  cornerOf,
+  directionName,
+  hasSize,
+  leanOf,
+  oppositeDiagonal,
+  type DiagonalDirection,
+} from "@icon-foundry/icon-language";
+import {
+  closestPoints,
+  isFiniteShape,
+  offGrammarAngles,
+  shapeDistance,
+  straightSegments,
+  type Point,
+  type Shape,
+  type StraightSegment,
+} from "@icon-foundry/icon-primitives";
 import { elementBox, type IconElement } from "@icon-foundry/icon-spec";
 import { defineRule, type ValidationIssue, type ValidationRule } from "../types.js";
 
@@ -410,6 +427,165 @@ export const metaphorRule = defineRule({
   },
 });
 
+/**
+ * Following the pointer.
+ *
+ * Cursor's pointer runs from bottom left to top right, and so does every icon
+ * that could go either way: diagonal arrows, flying objects, and any
+ * composition where one part sits above another — the smaller part goes to the
+ * top right. Slashes run the other way, top left to bottom right, because a
+ * slash cancels a direction and should cut against it.
+ *
+ * No one reads this off the screen. But without rules like it, a set stops
+ * looking like it came from one place, and *that* is read.
+ *
+ * ## Answering the objection
+ *
+ * This field sat unchecked for a long time behind a fair objection: no rule can
+ * tell which diagonal is the one that matters. A triangle has two. A chevron
+ * has two. An X is nothing but two, and marking either of them would be the
+ * rule firing on icons that are fine, which is how a rule set gets ignored.
+ *
+ * So it does not try. It weighs the diagonal ink each way and speaks only when
+ * one side clearly wins — when the drawing has a lean rather than a pair of
+ * them. A triangle's two sides cancel and it says nothing. An arrow's shaft and
+ * both barbs point one way and it does.
+ *
+ * That is also why it is a warning. It is checking a convention, and a
+ * convention has exceptions a person is entitled to make.
+ */
+
+/** How far off flat or upright a line must be before it counts as a diagonal. */
+const AXIAL = 8;
+/**
+ * How lopsided the diagonal ink has to be before there is a lean to check.
+ *
+ * At 0.6, a triangle (two equal sides) and a chevron say nothing, while an
+ * arrow — whose shaft and both barbs agree — says plenty. Set tighter and
+ * symmetric drawings start getting marked; set looser and the rule stops
+ * noticing arrows drawn with a stray counter-stroke.
+ */
+const LOPSIDED = 0.6;
+
+interface Lean {
+  direction: DiagonalDirection;
+  /** Diagonal ink running that way, in canvas units. */
+  length: number;
+  /** The longest single run of it, for pointing at. */
+  longest: StraightSegment | undefined;
+}
+
+/**
+ * The diagonal ink of a composed icon, weighed each way.
+ *
+ * Primitives whose concept fixes their diagonals opt out once in the
+ * vocabulary, the way they already do for construction angles, so what is
+ * weighed here is what a designer actually chose.
+ */
+function weighDiagonals(shapes: readonly { shape: Shape; freeDirection: boolean }[]): Record<"up-right" | "up-left", Lean> {
+  const totals: Record<"up-right" | "up-left", Lean> = {
+    "up-right": { direction: "up-right", length: 0, longest: undefined },
+    "up-left": { direction: "up-left", length: 0, longest: undefined },
+  };
+  for (const item of shapes) {
+    if (item.freeDirection) continue;
+    for (const segment of straightSegments(item.shape)) {
+      const lean = leanOf(segment.angle, AXIAL);
+      if (lean === "none") continue;
+      const total = totals[lean];
+      total.length += segment.length;
+      if (!total.longest || segment.length > total.longest.length) total.longest = segment;
+    }
+  }
+  return totals;
+}
+
+/** A run of straight line, as geometry a UI can draw over the icon. */
+const asLine = (segment: StraightSegment): Shape => ({
+  kind: "line",
+  x1: segment.from[0],
+  y1: segment.from[1],
+  x2: segment.to[0],
+  y2: segment.to[1],
+  fillable: false,
+});
+
+/**
+ * The cancelled form of an icon, by the only convention the set has for it:
+ * the `-off` suffix `offify` writes and the library stores. Its slash is the
+ * long corner-to-corner diagonal, and it is expected to run against the set —
+ * so the same rule that would flag it as backwards is what checks it is.
+ */
+const isCancelled = (name: string): boolean => /-off$/.test(name);
+
+export const directionRule = defineRule({
+  id: "direction",
+  label: "Direction",
+  check: ({ spec, language, composed, tokens }) => {
+    const issues: ValidationIssue[] = [];
+    const { diagonal, badge } = language.grammar;
+
+    if (composed && diagonal !== "none") {
+      const cancelled = isCancelled(spec.name);
+      const wanted = cancelled ? oppositeDiagonal(diagonal) : diagonal;
+      const totals = weighDiagonals(composed.shapes);
+      const along = totals[wanted === "up-right" ? "up-right" : "up-left"];
+      const against = totals[wanted === "up-right" ? "up-left" : "up-right"];
+
+      /*
+       * Nothing to say about a drawing with no diagonals, and nothing to say
+       * about one with a balanced pair. One grid step of ink is the floor: below
+       * that the "diagonal" is a rounded corner or a join, not a decision.
+       */
+      const total = along.length + against.length;
+      if (total >= tokens.grid && against.length > along.length && against.length >= total * LOPSIDED) {
+        issues.push({
+          severity: "warning",
+          rule: "direction",
+          message: cancelled
+            ? `The slash runs ${directionName(against.direction)}, along the ${directionName(diagonal)} diagonal this set follows. A slash cancels a direction, so it should cut against it and run ${directionName(wanted)}.`
+            : `The drawing leans ${directionName(against.direction)}; "${language.name}" runs diagonals ${directionName(wanted)}. Mirror it, or keep it and say why — an icon whose subject has a real direction is allowed one.`,
+          ...(against.longest && { evidence: [{ kind: "shape" as const, shape: asLine(against.longest) }] }),
+        });
+      }
+    }
+
+    /*
+     * The same convention where it is a composition rather than a line: of two
+     * parts, the smaller one goes to the stated corner. "Smaller" is the badge
+     * test the audit already uses — clearly subordinate, not merely smaller —
+     * and both offsets have to be real, so a small part sitting directly under
+     * a subject is a base, not a badge placed wrongly.
+     */
+    if (spec.elements.length >= 2) {
+      const boxes = spec.elements.map(elementBox);
+      const area = (b: (typeof boxes)[number]) => b.width * b.height;
+      const smallest = boxes.reduce((a, b) => (area(a) <= area(b) ? a : b));
+      const largest = boxes.reduce((a, b) => (area(a) >= area(b) ? a : b));
+      const centre = (b: (typeof boxes)[number]) => [b.x + b.width / 2, b.y + b.height / 2] as const;
+      const dx = centre(smallest)[0] - centre(largest)[0];
+      const dy = centre(smallest)[1] - centre(largest)[1];
+      // An eighth of the canvas each way: enough offset that the part is in a
+      // corner rather than beside or beneath the subject.
+      const clear = spec.canvas / 8;
+      if (area(smallest) <= area(largest) * 0.5 && Math.abs(dx) >= clear && Math.abs(dy) >= clear) {
+        const corner = cornerOf(dx, dy);
+        if (corner !== badge.corner) {
+          issues.push({
+            severity: "warning",
+            rule: "direction",
+            message: `The smaller part sits ${cornerName(corner)}; this set puts a badge ${cornerName(badge.corner)}.`,
+            source: `elements[${boxes.indexOf(smallest)}]`,
+            evidence: [{ kind: "bounds" as const, bounds: { minX: smallest.x, minY: smallest.y, maxX: smallest.x + smallest.width, maxY: smallest.y + smallest.height } }],
+          });
+        }
+      }
+    }
+
+    return issues;
+  },
+});
+
 export const builtInRules: readonly ValidationRule[] = [
   canvasRule,
   styleRule,
@@ -424,5 +600,6 @@ export const builtInRules: readonly ValidationRule[] = [
   gridRule,
   negativeSpaceRule,
   constructionRule,
+  directionRule,
   metaphorRule,
 ];

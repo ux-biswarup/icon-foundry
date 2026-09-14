@@ -335,6 +335,9 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           keywords: [...primitive.keywords],
           opticalShape: primitive.opticalShape,
           ...(primitive.freeAngles === true && { freeAngles: true }),
+          // Both opt-outs travel with the copy. A document copied without its
+          // fold exemption starts getting flagged for the fold.
+          ...(primitive.freeDirection === true && { freeDirection: true }),
           outline: skeletonPaths(natural, PRECISION),
         }),
       );

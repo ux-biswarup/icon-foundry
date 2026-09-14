@@ -898,7 +898,15 @@ export function LanguagePage() {
               </div>
             </Field>
 
-            <Field label="Badge corner" hint={<Lands>Every generated layout puts the badge here.</Lands>}>
+            <Field
+              label="Badge corner"
+              hint={
+                <Lands kind="checked">
+                  Every generated layout puts the badge here, and an icon whose smaller part sits in another corner is
+                  flagged. The same convention as the diagonals: of two parts, the smaller one goes to the top right.
+                </Lands>
+              }
+            >
               <Choice
                 options={CORNERS}
                 value={grammar.badge.corner}
@@ -919,7 +927,17 @@ export function LanguagePage() {
               </div>
             </Field>
 
-            <Field label="Diagonals" hint={<Lands kind="guidance">Told to the agent and shown in review. Not machine-checked: no rule can tell which diagonal is the one that matters.</Lands>}>
+            <Field
+              label="Diagonals"
+              hint={
+                <Lands kind="checked">
+                  Checked on every icon whose drawing has one lean rather than a pair, so a triangle and a chevron
+                  pass. Parts whose concept fixes their diagonals — a document&rsquo;s fold, a clock&rsquo;s hands —
+                  are exempt in the vocabulary. The slash on an <code>-off</code> icon is drawn, and checked, running
+                  the other way.
+                </Lands>
+              }
+            >
               <Choice options={DIAGONALS} value={grammar.diagonal} onChange={(diagonal) => patchGrammar({ diagonal })} />
             </Field>
             <Field label="Shape and silhouette" hint={<Lands kind="guidance">Both go to the agent. Neither blocks.</Lands>}>

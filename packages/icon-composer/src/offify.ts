@@ -1,4 +1,11 @@
-import { resolveTokens, type IconLanguage, type SizeTokens } from "@icon-foundry/icon-language";
+import {
+  DIAGONAL_ANGLES,
+  diagonalAngle,
+  oppositeDiagonal,
+  resolveTokens,
+  type IconLanguage,
+  type SizeTokens,
+} from "@icon-foundry/icon-language";
 import {
   bandThrough,
   clipOutsideBand,
@@ -25,7 +32,7 @@ import { compose, type ComposeOptions } from "./index.js";
  *
  * | | Lucide | Here |
  * | --- | --- | --- |
- * | direction | `M2 2 L 22 22` | `grammar.diagonal`, on an angle the grammar allows |
+ * | direction | `M2 2 L 22 22` | against `grammar.diagonal`, on an angle the grammar allows |
  * | gap | a constant | `stroke.width + 2 × minNegativeSpace` — the gap rule already stated |
  * | size | 24px | whatever the optical size is |
  *
@@ -38,15 +45,22 @@ export interface OffifyOptions extends ComposeOptions {
 }
 
 /**
- * The angle the slash runs at.
+ * The angle the slash runs at: **against** the way the set's diagonals lean.
  *
- * The grammar says which way a diagonal leans; the angle set says which
- * diagonals exist. Taking the nearest allowed angle to that lean means a
- * language of 0/90 only gets a slash it can actually draw, rather than a 45°
- * line it forbids everywhere else.
+ * A slash cancels a direction, so a slash lying along the pointer reads as part
+ * of the drawing rather than as a line through it. A set that runs up-right
+ * gets the up-left slash, which is also the one Lucide hardcodes — arrived at
+ * from the rule rather than copied, so a set that leans the other way gets the
+ * other slash for free.
+ *
+ * The grammar says which way its diagonals lean; the angle set says which
+ * diagonals exist. Taking the nearest allowed angle to the opposite lean means
+ * a language of 0/90 only gets a slash it can actually draw, rather than a 45°
+ * line it forbids everywhere else. A set that states no lean has no opposite
+ * one either, and falls back to the common slash.
  */
 export function slashAngle(language: IconLanguage): number {
-  const leaning = language.grammar.diagonal === "up-left" ? 135 : 45;
+  const leaning = diagonalAngle(oppositeDiagonal(language.grammar.diagonal)) ?? DIAGONAL_ANGLES["up-left"];
   const allowed = language.grammar.angles;
   if (allowed.length === 0) return leaning;
   let best = allowed[0]!;

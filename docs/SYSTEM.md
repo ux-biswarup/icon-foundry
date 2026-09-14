@@ -76,10 +76,11 @@ A rule declares its authority, and the three tiers behave differently on
 purpose. Forcing every principle into the first tier is what makes rule systems
 get ignored.
 
-**Enforced (13).** `canvas`, `style`, `geometry`, `safeArea`, `strokeWidth`,
-`strokeCap`, `strokeJoin`, `color`, `complexity`, `grid`, `negativeSpace`,
-`construction`, `metaphor`. Errors block; warnings do not. A composition
-failure is reported as a `compose` issue rather than thrown.
+**Enforced (15).** `canvas`, `style`, `geometry`, `safeArea`, `trim`,
+`strokeWidth`, `strokeCap`, `strokeJoin`, `color`, `complexity`, `grid`,
+`negativeSpace`, `construction`, `direction`, `metaphor`. Errors block;
+warnings do not. A composition failure is reported as a `compose` issue rather
+than thrown.
 
 **Scored (5).** `restraint`, `balance`, `symmetry`, `silhouette`, `breathing`.
 Each returns 0 to 1 with a sentence explaining the number, and none of them can
@@ -253,7 +254,7 @@ view of the canvas instead, left of Parts.
 
 1. Move anything on the right and the canvas redraws as you type.
 2. Hovering a construction trait dims every part it cannot reach, so nobody has to guess what a shared control does.
-3. Each control states where its value lands: verbatim to the agent, a checked rule, a score, or guidance that does not block. The left column counts them: 13 enforced, 5 scored, 3 left to you.
+3. Each control states where its value lands: verbatim to the agent, a checked rule, a score, or guidance that does not block. The Language view counts them: 15 enforced, 5 scored, 3 left to you.
 4. A derivation panel shows, for each token the axes propose, what each axis contributed and what the result is, with the endpoints editable so "minimal" can mean what this team means by it.
 5. A trait set by hand is badged as such, against one the axes proposed. Absent means derived; present means an override, and only overrides get written to the file.
 6. Ask for a change in words, and a model proposes trait values inside their declared ranges, names the parts each will move, and saves nothing.

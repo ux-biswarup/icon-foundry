@@ -1,4 +1,11 @@
-import { resolveTokens, type IconLanguage, type SizeTokens } from "@icon-foundry/icon-language";
+import {
+  cornerName,
+  directionName,
+  oppositeDiagonal,
+  resolveTokens,
+  type IconLanguage,
+  type SizeTokens,
+} from "@icon-foundry/icon-language";
 import type { Brief } from "./types.js";
 
 /**
@@ -32,7 +39,9 @@ export function systemPrompt(language: IconLanguage, canvas?: number): string {
       ? `- Straight lines run at ${grammar.angles.map((a) => `${a}°`).join(", ")} only. Introduce another angle only when the concept truly demands it, and say so.`
       : "- Any line angle is allowed.",
     grammar.closedShapes ? "- Prefer closed shapes over open ones." : "",
-    grammar.diagonal !== "none" ? `- Diagonals that could run either way run ${grammar.diagonal.replace("-", " ")}.` : "",
+    grammar.diagonal !== "none"
+      ? `- Diagonals that could run either way run ${directionName(grammar.diagonal)}, and of two parts the smaller one goes ${cornerName(grammar.badge.corner)}. A drawing whose diagonals cancel — a triangle, a chevron — has no direction to get wrong. A slash cancels a direction, so it cuts the other way, ${directionName(oppositeDiagonal(grammar.diagonal))}.`
+      : "",
     grammar.silhouette ? "- The icon must still read when reduced to a filled silhouette." : "",
     `- Keep at least ${tokens.minNegativeSpace} units of visible gap between separate parts, or overlap them deliberately so they cross.`,
     "",

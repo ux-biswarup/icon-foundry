@@ -752,25 +752,42 @@ function angleOf(x1: number, y1: number, x2: number, y2: number): number | undef
   return deg > 180 - 1e-9 ? 0 : deg;
 }
 
+/** One straight run of a shape: where it goes, how far, and at what angle. */
+export interface StraightSegment {
+  /** 0–180 from the x axis, y growing downward. A line has no direction. */
+  readonly angle: number;
+  readonly length: number;
+  readonly from: Point;
+  readonly to: Point;
+}
+
 /**
- * Angles of every straight segment in a shape, measured 0–180 from the x axis.
- * Curves (arcs and cubics) carry no construction angle and are skipped, as are
- * dot-length segments.
+ * Every straight run in a shape, with its length and endpoints.
+ *
+ * Angle alone answers "is this on the grammar". Length answers "does this
+ * matter", and a rule that weighs a 12-unit diagonal the same as a 0.3-unit nub
+ * is a rule that fires on nubs. Endpoints answer "where", so a rule can hand
+ * back the segment it objected to instead of a number.
+ *
+ * Curves carry no construction angle and are skipped, as are dot-length runs.
  */
-export function segmentAngles(shape: Shape): number[] {
-  const out: number[] = [];
+export function straightSegments(shape: Shape): StraightSegment[] {
+  const out: StraightSegment[] = [];
   const push = (x1: number, y1: number, x2: number, y2: number) => {
-    const a = angleOf(x1, y1, x2, y2);
-    if (a !== undefined) out.push(a);
+    const angle = angleOf(x1, y1, x2, y2);
+    if (angle === undefined) return;
+    out.push({ angle, length: Math.hypot(x2 - x1, y2 - y1), from: [x1, y1], to: [x2, y2] });
   };
   switch (shape.kind) {
     case "circle":
       break;
-    case "rect":
+    case "rect": {
       // Rects are axis-aligned by construction; rotation converts them to paths.
-      if (shape.width >= MIN_SEGMENT) out.push(0);
-      if (shape.height >= MIN_SEGMENT) out.push(90);
+      const { x, y, width, height } = shape;
+      if (width >= MIN_SEGMENT) push(x, y, x + width, y);
+      if (height >= MIN_SEGMENT) push(x + width, y, x + width, y + height);
       break;
+    }
     case "line":
       push(shape.x1, shape.y1, shape.x2, shape.y2);
       break;
@@ -817,6 +834,13 @@ export function segmentAngles(shape: Shape): number[] {
   }
   return out;
 }
+
+/**
+ * Angles of every straight segment in a shape, measured 0–180 from the x axis.
+ * The angle half of {@link straightSegments}, kept because most callers are
+ * asking a question about angles alone.
+ */
+export const segmentAngles = (shape: Shape): number[] => straightSegments(shape).map((s) => s.angle);
 
 /** Angles in the shape that no allowed angle matches within `tolerance`. */
 export function offGrammarAngles(shape: Shape, allowed: readonly number[], tolerance: number): number[] {

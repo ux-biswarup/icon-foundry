@@ -54,6 +54,8 @@ export interface ComposedShape {
   primitive: string;
   /** The source primitive opted out of the language's construction angles. */
   freeAngles: boolean;
+  /** The source primitive's concept fixes which way its diagonals run. */
+  freeDirection: boolean;
   /**
    * Which of the four keyline boxes this shape's part is sized against.
    *
@@ -245,7 +247,7 @@ function composeElement(
     const { shapes, box: natural } = pathElementGeometry(el, source);
     const m = placementMatrix(el, natural);
     for (const shape of shapes) {
-      out.push({ shape: transformShape(shape, m), style, stroke, color, primitive: "path", freeAngles: false, source });
+      out.push({ shape: transformShape(shape, m), style, stroke, color, primitive: "path", freeAngles: false, freeDirection: false, source });
     }
     return 1;
   }
@@ -275,6 +277,7 @@ function composeElement(
       color,
       primitive: primitive.name,
       freeAngles: primitive.freeAngles === true,
+      freeDirection: primitive.freeDirection === true,
       opticalShape: primitive.opticalShape,
       box,
       source,

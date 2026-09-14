@@ -170,6 +170,7 @@ export function definePathPrimitive(input: unknown): Primitive {
     opticalShape,
     keywords,
     ...(def.freeAngles === true && { freeAngles: true }),
+    ...(def.freeDirection === true && { freeDirection: true }),
     origin: def.origin === "approved" ? "approved" : "draft",
     build: (ctx) => {
       const shapes = ctx.style === "filled" ? filled : outline;

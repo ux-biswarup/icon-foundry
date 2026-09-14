@@ -268,11 +268,11 @@ soft tier picked up.
 | Field | Tier | Mechanism |
 | --- | --- | --- |
 | Line angles | Hard | Check. Measures every straight segment after composition. |
-| Badge corner | Hard | **Math.** The badge layout computes the box from it. |
+| Badge corner | Hard | **Math + Check.** The badge layout computes the box from it, and the same rule flags an icon whose smaller part sits in another corner. |
 | Badge size | Hard | **Math.** The badge layout computes the box from it, and the axes propose it. |
 | Allowed arrangements | Hard | **Check.** A concept asking for one this set does not allow is refused with the list. |
 | Arrangement spacing | Hard | **Math.** Drives the series layout; zero means "use the minimum gap". |
-| Diagonal direction | Human | Words, and labelled as guidance. No rule can tell which diagonal is the one that matters. |
+| Diagonal direction | Hard | **Check.** Weighs the diagonal ink each way and speaks only when one side clearly wins, so a triangle and a chevron pass. Parts whose concept fixes their diagonals opt out in the vocabulary (`freeDirection`), the way they already do for angles. A warning, not an error: it is a convention, and a convention has exceptions. |
 | Closed shapes | Soft | **Score.** The `silhouette` scorer weighs closed ink against open ink. |
 | Silhouette required | Soft | **Score.** Same scorer. |
 

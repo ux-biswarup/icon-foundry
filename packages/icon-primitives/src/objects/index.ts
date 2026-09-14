@@ -117,6 +117,8 @@ export const documentPrimitive = definePrimitive({
   category: "object",
   opticalShape: "vertical",
   description: "A sheet of paper with a folded corner.",
+  // The fold runs the way a page folds, not the way the set leans.
+  freeDirection: true,
   box: { width: 20, height: 24 },
   keywords: ["document", "file", "report", "invoice", "page", "paper", "contract", "note"],
   build: (ctx) => {
@@ -157,6 +159,9 @@ export const vehiclePrimitive = definePrimitive({
   category: "object",
   opticalShape: "horizontal",
   description: "A delivery truck facing right.",
+  // The cab slopes because the truck faces right. Which way it faces is the
+  // primitive's decision, taken once here; mirroring it is a different truck.
+  freeDirection: true,
   box: { width: 24, height: 18 },
   keywords: ["vehicle", "truck", "delivery", "shipping", "transport", "lorry", "van", "fleet"],
   build: (ctx) => {
