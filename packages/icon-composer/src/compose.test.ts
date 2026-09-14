@@ -141,3 +141,49 @@ describe("compose", () => {
     expect(a.shapes.map((x) => shapeBounds(x.shape))).toEqual(b.shapes.map((x) => shapeBounds(x.shape)));
   });
 });
+
+describe("keylines reported from a composition", () => {
+  const tokens = lucideInspired.sizes[24]!;
+
+  it("reports the keyline box, not where the part was put", () => {
+    /*
+     * The two coincide for a lone subject and diverge for everything else. An
+     * icon whose parts were placed by hand is measured against the same keyline
+     * as one that filled it — and the gap between the two is the finding, not a
+     * detail to smooth over by reporting the placement instead.
+     */
+    const icon = compose(
+      spec([
+        { primitive: "warehouse", x: 2, y: 6, width: 16, height: 16 },
+        { primitive: "thermometer", x: 15, y: 2, size: 7 },
+      ]),
+      lucideInspired,
+    );
+
+    const warehouse = icon.keylines.find((k) => k.primitive === "warehouse");
+    expect(warehouse?.shape).toBe("horizontal");
+    expect(warehouse?.box).toEqual(tokens.optical.horizontal);
+    // Placed well inside it, which is exactly what the overlay should show.
+    expect(warehouse?.placed).toEqual({ x: 2, y: 6, width: 16, height: 16 });
+  });
+
+  it("names one keyline per optical shape, however many parts use it", () => {
+    const icon = compose(
+      spec([
+        { primitive: "square", x: 1, y: 1, width: 8, height: 8 },
+        { primitive: "square", x: 14, y: 14, width: 8, height: 8 },
+      ]),
+      lucideInspired,
+    );
+    expect(icon.keylines).toHaveLength(1);
+    expect(icon.keylines[0]?.box).toEqual(tokens.optical.square);
+  });
+
+  it("says nothing for geometry that was never sized against one", () => {
+    // Freeform paths have no primitive and therefore no optical shape. They were
+    // drawn at a size rather than fitted to one, and claiming a keyline for them
+    // would be inventing a rule they never followed.
+    const icon = compose(spec([{ path: "M2 2 L22 22", x: 0, y: 0, width: 24, height: 24 }]), lucideInspired);
+    expect(icon.keylines).toEqual([]);
+  });
+});

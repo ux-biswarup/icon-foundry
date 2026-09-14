@@ -78,9 +78,19 @@ export interface ComposedShape {
  */
 export interface ComposedKeyline {
   shape: OpticalShape;
-  /** The box the part went into, which for a lone subject is the keyline box
-   *  and for a badge is the smaller box the layout gave it. */
+  /**
+   * The keyline box itself: `tokens.optical[shape]`. **The rule.**
+   *
+   * Not where the part went. Those coincide for a lone subject and diverge for
+   * everything else — a badge is placed at a fraction of the canvas and is not
+   * sized against a keyline at all — and conflating them means an overlay
+   * labelled "keylines" quietly draws layout boxes instead. The gap between
+   * this box and the drawing is the information: it is how you see that a part
+   * is sitting smaller than the rule says it should.
+   */
   box: Box;
+  /** Where the element was actually placed. Equal to `box` for a lone subject. */
+  placed: Box;
   primitive: string;
 }
 
@@ -273,14 +283,25 @@ function composeElement(
   return 1;
 }
 
-/** The distinct keylines a set of composed shapes went into. */
-function keylinesOf(shapes: readonly ComposedShape[]): ComposedKeyline[] {
+/**
+ * The distinct keylines in play, one per optical shape.
+ *
+ * Deduplicated by *shape* rather than by placement: two parts on the same
+ * optical shape are measured against one box however differently they were
+ * placed, and drawing that box twice would say otherwise.
+ */
+function keylinesOf(shapes: readonly ComposedShape[], tokens: SizeTokens): ComposedKeyline[] {
   const out: ComposedKeyline[] = [];
   for (const item of shapes) {
     if (!item.opticalShape || !item.box) continue;
+    if (out.some((k) => k.shape === item.opticalShape)) continue;
     const { x, y, width, height } = item.box;
-    if (out.some((k) => k.box.x === x && k.box.y === y && k.box.width === width && k.box.height === height)) continue;
-    out.push({ shape: item.opticalShape, box: { x, y, width, height }, primitive: item.primitive });
+    out.push({
+      shape: item.opticalShape,
+      box: { ...tokens.optical[item.opticalShape] },
+      placed: { x, y, width, height },
+      primitive: item.primitive,
+    });
   }
   return out;
 }
@@ -319,7 +340,7 @@ export function compose(spec: IconSpec, language: IconLanguage, options: Compose
     tokens,
     construction: language.construction,
     shapes,
-    keylines: keylinesOf(shapes),
+    keylines: keylinesOf(shapes, tokens),
     elementCount,
   };
 }
