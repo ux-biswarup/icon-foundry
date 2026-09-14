@@ -71,13 +71,46 @@ describe("definePathPrimitive", () => {
   it("builds a primitive with an inferred box and optical shape", () => {
     const p = definePathPrimitive(cat);
     expect(p.name).toBe("cat");
-    expect(p.box).toEqual({ width: 22, height: 22 });
+    // The cat is drawn from (2, 2) to (22, 22), so it is 20 across and not 22.
+    // Taking `maxX` by `maxY` would fold the two units between the origin and
+    // the drawing into the drawing, and the composer would then scale that void
+    // up with everything else: the ink would sit hard against the bottom and
+    // right of its keyline with a gap along the top and left.
+    expect(p.box).toEqual({ width: 20, height: 20 });
     expect(p.opticalShape).toBe("square");
     expect(p.origin).toBe("draft");
     expect(p.build({ style: "outline", strokeWidth: 2, cornerRadius: 2, scale: 1 })).toHaveLength(3);
     // filled falls back to the fillable (closed) outline paths
     expect(p.build({ style: "filled", strokeWidth: 2, cornerRadius: 2, scale: 1 })).toHaveLength(1);
-    expect(shapeBounds(p.build({ style: "filled", strokeWidth: 2, cornerRadius: 2, scale: 1 })[0]!).maxY).toBe(22);
+    // And the geometry moved with the box, so it still fills it exactly.
+    expect(shapeBounds(p.build({ style: "filled", strokeWidth: 2, cornerRadius: 2, scale: 1 })[0]!).maxY).toBe(20);
+  });
+
+  it("leaves a drawing that already starts at the origin exactly where it is", () => {
+    const square = definePathPrimitive({
+      name: "block",
+      category: "shape",
+      keywords: [],
+      outline: ["M0 0 L10 0 L10 8 L0 8 Z"],
+    });
+    expect(square.box).toEqual({ width: 10, height: 8 });
+    expect(shapeBounds(square.build({ style: "outline", strokeWidth: 2, cornerRadius: 0, scale: 1 })[0]!)).toMatchObject({
+      minX: 0,
+      minY: 0,
+    });
+  });
+
+  it("keeps padding somebody declared, because that was a decision", () => {
+    // Only the derived case was ever an accident. A stated box means the author
+    // wanted the drawing to sit inside it, and moving it would overrule them.
+    const padded = definePathPrimitive({ ...cat, box: { width: 24, height: 24 } });
+    expect(padded.box).toEqual({ width: 24, height: 24 });
+    // Unrounded, so this measures where the drawing sits rather than where the
+    // corner ramp pulled its sharpest point to.
+    expect(shapeBounds(padded.build({ style: "outline", strokeWidth: 2, cornerRadius: 0, scale: 1 })[0]!)).toMatchObject({
+      minX: 2,
+      minY: 2,
+    });
   });
 
   it("respects a declared box and rejects geometry that leaves it", () => {

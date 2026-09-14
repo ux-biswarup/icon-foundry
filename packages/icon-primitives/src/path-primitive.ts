@@ -1,5 +1,5 @@
 import type { OpticalShape } from "@icon-foundry/icon-language";
-import { shapeBounds, unionBounds, type Shape } from "./geometry.js";
+import { shapeBounds, transformShape, translate, unionBounds, type Point, type Shape } from "./geometry.js";
 import { pathShapeFromData } from "./path-data.js";
 import { inferOpticalShape, type Primitive, type PrimitiveCategory, type PrimitiveContext } from "./primitive.js";
 import { arcify } from "./arcify.js";
@@ -96,13 +96,41 @@ export function definePathPrimitive(input: unknown): Primitive {
   if (typeof def.category !== "string" || !CATEGORIES.includes(def.category as PrimitiveCategory)) {
     throw new PathPrimitiveError(`expected one of ${CATEGORIES.join(", ")}`, at("category"));
   }
-  const outline = parsePaths(def.outline, at("outline"));
-  const filled = def.filled === undefined ? outline.filter((s) => s.fillable) : parsePaths(def.filled, at("filled"));
+  let outline = parsePaths(def.outline, at("outline"));
+  let filled = def.filled === undefined ? outline.filter((s) => s.fillable) : parsePaths(def.filled, at("filled"));
   if (filled.length === 0) {
     throw new PathPrimitiveError("no fillable geometry for the filled style; add `filled` paths", at("filled"));
   }
 
-  const bounds = unionBounds([...outline, ...filled].map(shapeBounds));
+  const drawn = unionBounds([...outline, ...filled].map(shapeBounds));
+  /**
+   * Where the geometry sits, when nobody has said what box it lives in.
+   *
+   * The naive answer — `maxX` by `maxY` — quietly makes the empty space between
+   * the origin and the drawing part of the drawing. A part whose ink runs from
+   * (4, 4) then carries four units of nothing along its top and left, and the
+   * composer, fitting that box to a keyline, scales the void up with everything
+   * else: the ink lands hard against the bottom and right of its keyline and
+   * leaves a gap along the top and left. It reads as a bug because it is one,
+   * and the cause is four units nobody drew.
+   *
+   * So an undeclared box is the ink's own extent, and the geometry is moved to
+   * meet it. Done here, once, rather than in the composer: placement must not
+   * depend on what the geometry currently *is*, or removing some of it — which
+   * is exactly what cutting an `-off` variant does — would resize what is left.
+   */
+  const offset: Point | undefined =
+    def.box === undefined && (Math.abs(drawn.minX) > 1e-6 || Math.abs(drawn.minY) > 1e-6)
+      ? [-drawn.minX, -drawn.minY]
+      : undefined;
+  if (offset) {
+    outline = outline.map((shape) => transformShape(shape, translate(offset[0], offset[1])));
+    filled = filled.map((shape) => transformShape(shape, translate(offset[0], offset[1])));
+  }
+  const bounds = offset
+    ? { minX: 0, minY: 0, maxX: drawn.maxX + offset[0], maxY: drawn.maxY + offset[1] }
+    : drawn;
+
   let box: { width: number; height: number };
   if (def.box !== undefined) {
     const b = def.box as Record<string, unknown>;
@@ -118,10 +146,10 @@ export function definePathPrimitive(input: unknown): Primitive {
       );
     }
   } else {
+    // Already moved to the origin above, so this is the ink's own extent. A
+    // declared box is left exactly as declared: padding somebody asked for is a
+    // decision, and only the derived case was ever an accident.
     box = { width: bounds.maxX, height: bounds.maxY };
-    if (bounds.minX < -1e-6 || bounds.minY < -1e-6) {
-      throw new PathPrimitiveError("geometry must start at or after 0,0 when `box` is omitted", at("outline"));
-    }
   }
 
   const keywords = Array.isArray(def.keywords) ? def.keywords.filter((k): k is string => typeof k === "string") : [];
