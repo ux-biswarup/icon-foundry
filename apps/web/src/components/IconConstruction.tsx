@@ -3,8 +3,9 @@ import type { Library } from "@icon-foundry/icon-library";
 import { importSvg, skeletonFromPathData, type Skeleton } from "@icon-foundry/icon-primitives";
 import { shapeToPathData, skeletonPaths } from "@icon-foundry/icon-renderer";
 import type { IconSpec } from "@icon-foundry/icon-spec";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConstruction } from "../lib/useConstruction.js";
+import { useHistory, useUndoKeys } from "../lib/useHistory.js";
 import { ConstructionStage, DEFAULT_LAYERS, LayerToggles } from "./ConstructionStage.js";
 import { MethodCode } from "./MethodCode.js";
 
@@ -35,7 +36,8 @@ export function IconConstruction({
 }) {
   const language = library.languageFor(spec);
   const registry = library.registry();
-  const [draft, setDraft] = useState<Skeleton>();
+  const history = useHistory<Skeleton | undefined>(undefined);
+  const draft = history.present;
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
   const [showRounded, setShowRounded] = useState(false);
@@ -44,6 +46,17 @@ export function IconConstruction({
   const [taken, setTaken] = useState<string[]>([]);
   const [codeError, setCodeError] = useState<string>();
 
+  /**
+   * The recipe this draft arrived as, held apart from what it has become.
+   *
+   * Editing hands a *drawing* back to the page, which then becomes the spec
+   * prop — so composing the prop would compose the edit, `base` would be the
+   * edit, and "back to the composition" would have nothing left to go back to.
+   * Keeping the original means undo has a floor and the offer is real.
+   */
+  const original = useRef(spec);
+  if (original.current.name !== spec.name) original.current = spec;
+
   /*
    * Composed geometry is already in canvas units, so unlike a part there is no
    * placement to undo. What comes off `compose()` is exactly what will be
@@ -51,10 +64,12 @@ export function IconConstruction({
    */
   const composed = useMemo(() => {
     try {
-      return compose(spec, language, { registry });
+      return compose(original.current, language, { registry });
     } catch {
       return undefined;
     }
+    // `original.current` is deliberately not a dependency: it changes only when
+    // the subject does, and that changes `spec` too.
   }, [spec, language, registry]);
 
   const base = useMemo(() => {
@@ -89,23 +104,41 @@ export function IconConstruction({
     ].join("\n");
   }, [typing, skeleton, tokens, asSvg, spec.canvas]);
 
+  useUndoKeys(history);
+
   /** The edited drawing as a spec: one freeform element in canvas coordinates. */
-  const commit = (next: Skeleton) => {
-    setDraft(next);
-    onChange({
-      ...spec,
+  const specFor = useCallback(
+    (next: Skeleton): IconSpec => ({
+      ...original.current,
       elements: [
         {
           path: skeletonPaths(next, 4),
           x: 0,
           y: 0,
-          width: spec.canvas,
-          height: spec.canvas,
-          natural: { width: spec.canvas, height: spec.canvas },
+          width: original.current.canvas,
+          height: original.current.canvas,
+          natural: { width: original.current.canvas, height: original.current.canvas },
         },
       ],
-    });
+    }),
+    [],
+  );
+
+  const commit = (next: Skeleton, continues = false) => {
+    if (continues) history.set(next);
+    else history.commit(next);
   };
+
+  /*
+   * Reported from the value rather than from the gesture, because undo does not
+   * go through a gesture. Pressing ⌘Z moves `history.present` directly, and a
+   * page told only about drags would keep whatever the last drag produced.
+   */
+  const report = useRef(onChange);
+  report.current = onChange;
+  useEffect(() => {
+    report.current(draft === undefined ? original.current : specFor(draft));
+  }, [draft, specFor]);
 
   const onCode = (next: string) => {
     setTyping(next);
@@ -144,8 +177,26 @@ export function IconConstruction({
           </button>
         ))}
         <span className="spacer" />
+        {(history.canUndo || history.canRedo) && (
+          <>
+            <button type="button" className="chip" disabled={!history.canUndo} onClick={history.undo} title="⌘Z">
+              Undo{history.depth > 0 ? ` ${history.depth}` : ""}
+            </button>
+            <button type="button" className="chip" disabled={!history.canRedo} onClick={history.redo} title="⇧⌘Z">
+              Redo
+            </button>
+          </>
+        )}
         {edited && (
-          <button type="button" className="chip" onClick={() => { setDraft(undefined); setTyping(undefined); setTaken([]); }}>
+          <button
+            type="button"
+            className="chip"
+            onClick={() => {
+              history.reset(undefined);
+              setTyping(undefined);
+              setTaken([]);
+            }}
+          >
             Back to the composition
           </button>
         )}
@@ -157,10 +208,10 @@ export function IconConstruction({
         <ConstructionStage
           skeleton={skeleton}
           shown={shown}
-          onChange={(next) => {
+          onChange={(next, continues) => {
             setTyping(undefined);
             setCodeError(undefined);
-            commit(next);
+            commit(next, continues);
           }}
           language={language}
           tokens={tokens}

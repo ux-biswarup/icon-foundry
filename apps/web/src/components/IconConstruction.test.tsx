@@ -140,3 +140,47 @@ describe("editing a draft", () => {
     expect(String(read().elements?.[0] && (read().elements?.[0] as { path?: string[] }).path)).toContain("6 6");
   });
 });
+
+describe("undo on a draft", () => {
+  const byText = (view: { container: HTMLElement }, text: string) =>
+    [...view.container.querySelectorAll("button")].find((b) => b.textContent?.startsWith(text));
+
+  it("goes back to the composition, which is a recipe again", async () => {
+    /*
+     * The trap: editing hands a *drawing* back to the page, which becomes the
+     * spec prop. Composing that prop would compose the edit, so "back to the
+     * composition" would have nothing left to go back to. The original is held
+     * apart for exactly this.
+     */
+    const { view, stage, read } = await draft();
+    const handle = stage.querySelector("circle.mth-hit-vertex") as SVGCircleElement;
+    await act(async () => {
+      handle.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          pointerId: 1,
+          clientX: px(Number(handle.getAttribute("cx"))),
+          clientY: px(Number(handle.getAttribute("cy"))),
+        }),
+      );
+    });
+    await act(async () => {
+      stage.dispatchEvent(
+        new PointerEvent("pointermove", { bubbles: true, pointerId: 1, clientX: px(6), clientY: px(6) }),
+      );
+    });
+    await act(async () => {
+      stage.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+    });
+    expect(read().elements?.[0]).toHaveProperty("path");
+
+    await act(async () => {
+      byText(view, "Undo")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    // Undo went through state rather than through a gesture, and the page was
+    // told — so the icon is a composition again, not a drawing of one.
+    expect(read().elements?.[0]).toHaveProperty("primitive", "square");
+    expect(view.container.textContent).toContain("Built from the vocabulary");
+  });
+});

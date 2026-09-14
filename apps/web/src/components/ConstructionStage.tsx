@@ -94,7 +94,15 @@ export interface StageProps {
   skeleton: Skeleton;
   /** What to draw, which is the rounded form when rounding is on. */
   shown: Skeleton;
-  onChange: (next: Skeleton) => void;
+  /**
+   * `continues` is true for every frame of a drag after the first.
+   *
+   * Undo needs it. A drag calls back sixty times a second, and a caller that
+   * recorded each call would bury one gesture under a hundred history entries —
+   * undo would then walk the pointer backwards instead of putting the drawing
+   * back. The stage is the only thing that knows where one gesture ends.
+   */
+  onChange: (next: Skeleton, continues?: boolean) => void;
   language: IconLanguage;
   tokens: SizeTokens;
   measured: Construction;
@@ -248,13 +256,13 @@ export function ConstructionStage({
       if (!from) return;
       const moving = new Set(drag.moving);
       const landed = landing([from[0] + delta[0], from[1] + delta[1]], moving, drag.base, free);
-      onChange(moveVertices(drag.base, moving, [landed[0] - from[0], landed[1] - from[1]]));
+      onChange(moveVertices(drag.base, moving, [landed[0] - from[0], landed[1] - from[1]]), drag.moved);
     } else if (drag.kind === "fillet" && drag.fillet) {
       const radius = radiusFrom(drag.fillet, raw);
-      onChange(recutFillet(drag.base, drag.fillet, free ? radius : Math.max(0, toGrid(radius))));
+      onChange(recutFillet(drag.base, drag.fillet, free ? radius : Math.max(0, toGrid(radius))), drag.moved);
     } else if (drag.kind === "radius" && drag.joint) {
       const radius = radiusFrom(drag.joint, raw);
-      onChange(setCorner(drag.base, drag.joint.vertex, free ? radius : Math.max(0, toGrid(radius))));
+      onChange(setCorner(drag.base, drag.joint.vertex, free ? radius : Math.max(0, toGrid(radius))), drag.moved);
     } else if (drag.kind === "arc") {
       const view = segmentViews(drag.base, language, freeAngles).find(
         (v) => v.sub === drag.sub && v.index === drag.index,
@@ -268,10 +276,10 @@ export function ConstructionStage({
       const perpendicular: Point = [-(view.to[1] - view.from[1]) / span, (view.to[0] - view.from[0]) / span];
       const along = (raw[0] - mid[0]) * perpendicular[0] + (raw[1] - mid[1]) * perpendicular[1];
       const radius = Math.hypot(span / 2, along);
-      onChange(setArcRadius(drag.base, drag.sub, drag.index, free ? radius : Math.max(span / 2, toGrid(radius))));
+      onChange(setArcRadius(drag.base, drag.sub, drag.index, free ? radius : Math.max(span / 2, toGrid(radius))), drag.moved);
     } else if (drag.kind === "cp1" || drag.kind === "cp2") {
       const to: Point = free ? raw : [toGrid(raw[0]), toGrid(raw[1])];
-      onChange(moveControlPoint(drag.base, drag.sub, drag.index, drag.kind === "cp1" ? 1 : 2, to));
+      onChange(moveControlPoint(drag.base, drag.sub, drag.index, drag.kind === "cp1" ? 1 : 2, to), drag.moved);
     }
 
     if (!drag.moved) setDrag({ ...drag, moved: true });

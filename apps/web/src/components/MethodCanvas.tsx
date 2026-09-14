@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { IDENTITY, invert, mapSkeleton, placementFor, type Placement } from "../lib/method-geometry.js";
 import { useConstruction } from "../lib/useConstruction.js";
+import { useHistory, useUndoKeys } from "../lib/useHistory.js";
 import { ConstructionStage, DEFAULT_LAYERS, LayerToggles } from "./ConstructionStage.js";
 import { IconSvg } from "./IconSvg.js";
 import { MethodCode } from "./MethodCode.js";
@@ -96,7 +97,14 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
   const record = elements.find((e) => e.name === selected);
   const editable = record !== undefined;
 
-  const [draft, setDraft] = useState<Skeleton>();
+  /*
+   * History holds `undefined` for "as saved", which keeps `dirty` meaning what
+   * it always meant and makes undoing back to the original land on the very
+   * same object rather than on a copy that merely matches it.
+   */
+  const history = useHistory<Skeleton | undefined>(undefined);
+  const draft = history.present;
+  const setDraft = history.commit;
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
   const [showRounded, setShowRounded] = useState(false);
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
@@ -250,7 +258,15 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
   // A selection is a set of segment ids, and every action that changes the
   // drawing's shape can renumber them. Holding on to a stale one would let a
   // later delete remove something the designer never picked.
-  useEffect(() => setPicked(new Set()), [selected]);
+  useEffect(() => {
+    setPicked(new Set());
+    history.reset(undefined);
+    // `history.reset` is stable; listing it would re-run this on every render
+    // and wipe the stack the moment anything else changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
+  useUndoKeys(history, editable);
 
   /* ---------------------------------------------------------------- */
   /* Actions                                                           */
@@ -289,7 +305,7 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
         paths = next.split("\n").filter((line) => line.trim().length > 0);
         setTaken([]);
       }
-      setDraft(mapSkeleton(skeletonFromPathData(paths), placement));
+      history.commit(mapSkeleton(skeletonFromPathData(paths), placement));
       setCodeError(undefined);
     } catch (e) {
       setCodeError(e instanceof Error ? e.message : String(e));
@@ -322,7 +338,7 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           outline: skeletonPaths(natural, PRECISION),
         }),
       );
-      setDraft(undefined);
+      history.reset(undefined);
       setError(undefined);
       onSelect(name);
     } catch (e) {
@@ -331,7 +347,7 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
   };
 
   const revert = () => {
-    setDraft(undefined);
+    history.reset(undefined);
     setTyping(undefined);
     setCodeError(undefined);
     setError(undefined);
@@ -437,6 +453,29 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           </button>
         )}
         {freeAngles && <span className="muted small-text">declares free angles</span>}
+        {editable && (history.canUndo || history.canRedo) && (
+          <>
+            <button
+              type="button"
+              className="chip"
+              disabled={!history.canUndo}
+              onClick={history.undo}
+              title="Undo the last step (⌘Z)"
+            >
+              Undo{history.depth > 0 ? ` ${history.depth}` : ""}
+            </button>
+            <button
+              type="button"
+              className="chip"
+              disabled={!history.canRedo}
+              onClick={history.redo}
+              title="Redo (⇧⌘Z)"
+            >
+              Redo
+            </button>
+            <span className="bar-sep" />
+          </>
+        )}
         {dirty && (
           <>
             <button className="chip" onClick={revert}>
@@ -463,10 +502,11 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           <ConstructionStage
             skeleton={skeleton}
             shown={shown}
-            onChange={(next) => {
+            onChange={(next, continues) => {
               setTyping(undefined);
               setCodeError(undefined);
-              setDraft(next);
+              if (continues) history.set(next);
+              else history.commit(next);
             }}
             language={language}
             tokens={tokens}

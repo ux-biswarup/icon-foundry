@@ -617,3 +617,114 @@ describe("pasting an SVG into the code pane", () => {
     expect(vertices(stage)).toEqual(before);
   });
 });
+
+describe("undo and redo", () => {
+  const undo = (view: { container: HTMLElement }) =>
+    [...view.container.querySelectorAll("button")].find((b) => b.textContent?.startsWith("Undo"));
+  const redo = (view: { container: HTMLElement }) =>
+    [...view.container.querySelectorAll("button")].find((b) => b.textContent === "Redo");
+  const click = async (b: Element | undefined) => {
+    await act(async () => {
+      b?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+  };
+
+  it("offers nothing to undo until something is done", async () => {
+    const { view } = await studio();
+    expect(undo(view)).toBeUndefined();
+    expect(redo(view)).toBeUndefined();
+  });
+
+  it("records one step per drag, not one per frame", async () => {
+    /*
+     * The whole difficulty. A drag calls back on every pointer move, and a
+     * history that recorded each call would bury one gesture under a hundred
+     * entries — undo would walk the pointer backwards across the screen instead
+     * of putting the drawing back where it was.
+     */
+    const { view, stage } = await studio();
+    const handle = hits(stage, "vertex")[1]!;
+    await press(stage, handle);
+    await moveTo(stage, [14, 5]);
+    await moveTo(stage, [14, 6]);
+    await moveTo(stage, [14, 7]);
+    await release(stage);
+
+    expect(vertices(stage)[1]).toEqual([14, 7]);
+    expect(undo(view)?.textContent).toBe("Undo 1");
+  });
+
+  it("puts the drawing back, and forward again", async () => {
+    const { view, stage } = await studio();
+    const before = vertices(stage);
+    await drag(stage, hits(stage, "vertex")[1]!, [14, 7]);
+    expect(vertices(stage)[1]).toEqual([14, 7]);
+
+    await click(undo(view));
+    expect(vertices(stage)).toEqual(before);
+    // Back to as-saved, so there is nothing to save either.
+    expect(button(view, "Save")).toBeUndefined();
+
+    await click(redo(view));
+    expect(vertices(stage)[1]).toEqual([14, 7]);
+    expect(button(view, "Save")).toBeDefined();
+  });
+
+  it("counts a toolbar action as its own step", async () => {
+    const { view, stage } = await studio();
+    await drag(stage, hits(stage, "vertex")[1]!, [14, 7]);
+    await click(button(view, "Arcify"));
+    expect(undo(view)?.textContent).toBe("Undo 2");
+
+    // Undoing the Arcify leaves the drag in place.
+    await click(undo(view));
+    expect(vertices(stage)[1]).toEqual([14, 7]);
+  });
+
+  it("drops the redo trail once a new step is taken", async () => {
+    const { view, stage } = await studio();
+    await drag(stage, hits(stage, "vertex")[1]!, [14, 7]);
+    await click(undo(view));
+    expect(redo(view)?.disabled).toBe(false);
+
+    await drag(stage, hits(stage, "vertex")[1]!, [14, 9]);
+    expect(redo(view)?.disabled).toBe(true);
+    expect(vertices(stage)[1]).toEqual([14, 9]);
+  });
+
+  it("starts again when the part does", async () => {
+    // A history that survived a change of subject would offer to undo an edit
+    // into a drawing that never had it.
+    const library = await Library.create(new MemoryStore(), { id: "acme", name: "Acme" });
+    await library.saveElement({
+      name: "panel",
+      category: "object",
+      keywords: ["panel"],
+      box: { width: 13, height: 13 },
+      opticalShape: "square",
+      outline: ["M0.5 0.5 L12.5 0.5 L12.5 12.5 L0.5 12.5 Z"],
+    });
+    const props = (selected: string) => ({
+      library,
+      language: technical,
+      registry: library.registry(),
+      size: 16,
+      selected,
+      onSelect: () => {},
+      onAction: async (fn: (lib: typeof library) => Promise<unknown>) => fn(library),
+    });
+
+    const view = render(<MethodCanvas {...props("panel")} />);
+    const stage = view.container.querySelector("svg.method-svg") as SVGSVGElement;
+    stage.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: STAGE, height: STAGE, right: STAGE, bottom: STAGE, x: 0, y: 0 }) as DOMRect;
+
+    await drag(stage, hits(stage, "vertex")[1]!, [14, 7]);
+    expect(undo(view)).toBeDefined();
+
+    await act(async () => {
+      view.rerender(<MethodCanvas {...props("circle")} />);
+    });
+    expect(undo(view)).toBeUndefined();
+  });
+});
