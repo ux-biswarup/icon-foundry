@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { specElementNames } from "@icon-foundry/icon-spec";
 import { Library, MemoryStore } from "@icon-foundry/icon-library";
+import { parseIconLanguage, serializeIconLanguage, technical } from "@icon-foundry/icon-language";
 import { createIcon, NoVocabularyError } from "./index.js";
+import { systemPrompt } from "./prompt.js";
 import type { AgentModel, AgentTool } from "./types.js";
 
 async function library() {
@@ -150,7 +153,9 @@ describe("concepts", () => {
     for (const c of result.candidates) {
       expect(c.concept).toBe("cold-storage");
       expect(c.validation.valid).toBe(true);
-      expect(c.spec.elements.map((e) => e.primitive)).toEqual(["warehouse", "snowflake"]);
+      // The parts, not their boxes: a compiled concept stores what it is made
+      // of and leaves the placing to the language.
+      expect(specElementNames(c.spec)).toEqual(["warehouse", "snowflake"]);
     }
   });
 
@@ -189,5 +194,34 @@ describe("concepts", () => {
     expect(candidate.newConcept?.composition.arrangement).toBe("stack");
     expect(candidate.newConcept?.aliases).toEqual(["host", "backend"]);
     expect(result.steps.map((s) => s.tool)[0]).toBe("resolve_concept");
+  });
+});
+
+describe("the construction method reaches the model", () => {
+  it("states the ramp in units, read off the language rather than hardcoded", () => {
+    const prompt = systemPrompt(technical, 16);
+    // 16px: cornerRadius 1.5, so the bands are 0.75 / 1.5 / 3.
+    expect(prompt).toContain("up to 60°, 0.75 units");
+    expect(prompt).toContain("60° to 120°, 1.5 units");
+    expect(prompt).toContain("wider than 120°, 3 units");
+    // The same language at a larger size says larger numbers, with nobody
+    // editing a prompt.
+    expect(systemPrompt(technical, 32)).toContain("wider than 120°, 6 units");
+  });
+
+  it("asks for a skeleton and refuses hand-drawn roundness", () => {
+    const prompt = systemPrompt(technical, 16);
+    expect(prompt).toMatch(/Draw the skeleton: straight segments only/);
+    expect(prompt).toMatch(/A cloud is straight segments with rounded joins/);
+    expect(prompt).toMatch(/Never write an arc to round a corner/);
+    expect(prompt).toMatch(/Freeform curves are extremely rare/);
+  });
+
+  it("follows a language that states its own ramp", () => {
+    const square = parseIconLanguage({
+      ...serializeIconLanguage(technical),
+      construction: { corners: [{ radius: 0 }] },
+    });
+    expect(systemPrompt(square, 16)).toContain("wider than 0°, 0 units");
   });
 });

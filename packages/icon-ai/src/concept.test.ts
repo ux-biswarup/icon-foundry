@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseIconLanguage, serializeIconLanguage, technical } from "@icon-foundry/icon-language";
-import type { ConceptComposition } from "@icon-foundry/icon-spec";
+import type { ConceptComposition, IconSpec } from "@icon-foundry/icon-spec";
+import { resolveSpec } from "@icon-foundry/icon-composer";
 import { renderSpecToSvg } from "@icon-foundry/icon-renderer";
 import { validateIconSpec } from "@icon-foundry/icon-validator";
 import { ConceptError, composeConcept, pruneParts } from "./index.js";
@@ -23,6 +24,10 @@ const coldStore: ConceptComposition = {
 
 const compile = (c: ConceptComposition, canvas?: number, name = "t") =>
   composeConcept(c, technical, { name, ...(canvas !== undefined && { canvas }) });
+
+/** A compiled concept, placed. Geometry lives in the language, so a test that
+ * wants boxes has to ask the language for them, exactly like a renderer does. */
+const placed = (spec: IconSpec, language = technical) => resolveSpec(spec, language).elements;
 
 describe("pruneParts", () => {
   it("keeps every essential part even past the budget", () => {
@@ -50,7 +55,7 @@ describe("composeConcept", () => {
   it("draws the same concept differently at two sizes, because the budget differs", () => {
     const small = compile(server, 16);
     const large = compile(server, 24);
-    expect(small.elements.length).toBeLessThan(large.elements.length);
+    expect(placed(small).length).toBeLessThan(placed(large).length);
     expect((small.meta as Record<string, unknown>).pruned).toEqual(["minus"]);
     expect((large.meta as Record<string, unknown>).pruned).toBeUndefined();
     // And nobody drew either one.
@@ -70,7 +75,7 @@ describe("composeConcept", () => {
       ],
     ];
     for (const [name, composition] of cases) {
-      for (const canvas of [16, 24]) {
+      for (const canvas of [16, 24, 32]) {
         const spec = compile(composition, canvas, `${name}-${canvas}`);
         const result = validateIconSpec(spec, technical);
         expect(result.valid, `${name}@${canvas}: ${result.issues.map((i) => i.message).join("; ")}`).toBe(true);
@@ -82,7 +87,7 @@ describe("composeConcept", () => {
   it("keeps a series on the grid and inside its keyline box", () => {
     const spec = compile({ arrangement: "row", parts: [{ element: "square", count: 4, priority: "essential" }] }, 16);
     const tokens = technical.sizes[16]!;
-    for (const el of spec.elements) {
+    for (const el of placed(spec)) {
       for (const v of [el.x, el.y, el.width!, el.height!]) {
         expect(Math.abs(v / tokens.grid - Math.round(v / tokens.grid))).toBeLessThan(1e-9);
       }
@@ -119,13 +124,13 @@ describe("composeConcept", () => {
     const b = composeConcept(coldStore, other, { name: "cold" });
 
     // The concept is untouched: same parts, same arrangement.
-    expect(a.elements.map((e) => e.primitive)).toEqual(b.elements.map((e) => e.primitive));
+    expect(a.composition!.parts.map((p) => p.element)).toEqual(b.composition!.parts.map((p) => p.element));
     expect(a.meta).toMatchObject({ arrangement: "badge" });
     expect(b.meta).toMatchObject({ arrangement: "badge" });
 
     // The drawing is not. The badge derives larger in the more expressive
     // language, and the radius is heavier, so the SVG differs in both.
-    expect(b.elements[1]!.width!).toBeGreaterThan(a.elements[1]!.width!);
+    expect(placed(b, other)[1]!.width!).toBeGreaterThan(placed(a)[1]!.width!);
     expect(renderSpecToSvg(a, technical)).not.toBe(renderSpecToSvg(b, other));
     expect(validateIconSpec(b, other).valid).toBe(true);
   });

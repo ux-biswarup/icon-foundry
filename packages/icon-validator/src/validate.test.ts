@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { lucideInspired, parseIconLanguage, technical } from "@icon-foundry/icon-language";
 import { parseIconSpec } from "@icon-foundry/icon-spec";
+import { offify } from "@icon-foundry/icon-composer";
 import { validateIconSpec } from "./index.js";
 
 const spec = (elements: unknown[], extra: Record<string, unknown> = {}) =>
@@ -29,15 +30,15 @@ describe("validateIconSpec", () => {
       spec(
         [
           { primitive: "warehouse", x: 1, y: 6, width: 11, height: 7, align: { x: "start", y: "end" } },
-          { primitive: "snowflake", x: 10, y: 1, size: 5, stroke: { width: 1.5 } },
+          { primitive: "snowflake", x: 10, y: 1, size: 5, stroke: { width: 1.25 } },
         ],
         { canvas: 16 },
       ),
       lucideInspired,
     );
-    // 1.5 is the 16px stroke, so the override is not a deviation there.
+    // 1.25 is the 16px stroke, so the override is not a deviation there.
     expect(at16.issues).toEqual([]);
-    const at24 = validateIconSpec(spec([{ primitive: "circle", x: 2, y: 2, size: 20, stroke: { width: 1.5 } }]), lucideInspired);
+    const at24 = validateIconSpec(spec([{ primitive: "circle", x: 2, y: 2, size: 20, stroke: { width: 1.25 } }]), lucideInspired);
     expect(rules(at24)).toContain("strokeWidth");
   });
 
@@ -88,7 +89,7 @@ describe("validateIconSpec", () => {
 
   it("warns about stroke width, cap and join overrides with element paths", () => {
     const result = validateIconSpec(
-      spec([{ primitive: "line", x: 2, y: 2, size: 20, stroke: { width: 2.24, cap: "butt", join: "miter" } }]),
+      spec([{ primitive: "line", x: 2, y: 2, size: 20, stroke: { width: 1.68, cap: "butt", join: "miter" } }]),
       lucideInspired,
     );
     expect(result.valid).toBe(true);
@@ -172,5 +173,35 @@ describe("construction rule", () => {
       lucideInspired,
     );
     expect(rules(result)).not.toContain("construction");
+  });
+});
+
+describe("the slashed variant", () => {
+  // The strongest check available on offify: the icon it produces is held to the
+  // same gap rule the cut was sized from. An earlier version cut a band of
+  // `stroke + 2 × gap` and left `gap − stroke/2` of white, which looks right on
+  // paper and fails here.
+  it("satisfies the negative-space rule it was cut from, at every size", () => {
+    for (const canvas of [16, 24, 32]) {
+      const spec = parseIconSpec({
+        name: "bell",
+        language: "technical",
+        canvas,
+        elements: [{ primitive: "circle", x: 2, y: 2, size: canvas - 4 }],
+      });
+      const result = validateIconSpec(offify(spec, technical), technical);
+      expect(rules(result), `${canvas}px`).not.toContain("negativeSpace");
+      expect(result.valid, `${canvas}px`).toBe(true);
+    }
+  });
+
+  it("keeps the slash inside the safe area", () => {
+    const spec = parseIconSpec({
+      name: "bell",
+      language: "technical",
+      canvas: 16,
+      elements: [{ primitive: "circle", x: 3, y: 3, size: 10 }],
+    });
+    expect(rules(validateIconSpec(offify(spec, technical), technical))).not.toContain("safeArea");
   });
 });

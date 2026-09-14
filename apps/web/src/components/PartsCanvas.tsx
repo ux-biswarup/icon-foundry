@@ -7,6 +7,7 @@ import {
   type ConstructionException,
   type ConstructionTrait,
   type IconLanguage,
+  type IconStyle,
 } from "@icon-foundry/icon-language";
 import type { ElementRecord, Library } from "@icon-foundry/icon-library";
 import type { Primitive, PrimitiveRegistry } from "@icon-foundry/icon-primitives";
@@ -14,7 +15,8 @@ import { renderSvg } from "@icon-foundry/icon-renderer";
 import type { IconSpec } from "@icon-foundry/icon-spec";
 import { useState, type CSSProperties } from "react";
 import { previewElementChange } from "@icon-foundry/icon-audit";
-import { Duo } from "./Duo.js";
+import { useGround } from "../lib/theme.js";
+import { Swatch } from "./Swatch.js";
 import { IconSvg } from "./IconSvg.js";
 import { StatusPill } from "./Status.js";
 
@@ -50,6 +52,13 @@ export interface CanvasProps {
    * you were looking at came from the tokens or from the magnification.
    */
   zoom: number;
+  /** Optical sizes this language defines, offered as the choice of `size`. */
+  sizes: readonly number[];
+  onSize: (size: number) => void;
+  onZoom: (zoom: number) => void;
+  /** Outline or filled. The parts are drawn in it; nothing about them changes. */
+  style: IconStyle;
+  onStyle: (style: IconStyle) => void;
   selected: string | undefined;
   onSelect: (name: string | undefined) => void;
   onAction: (fn: (lib: Library) => Promise<unknown>) => Promise<unknown>;
@@ -74,6 +83,11 @@ export function PartsCanvas({
   focus,
   size,
   zoom,
+  sizes,
+  onSize,
+  onZoom,
+  style,
+  onStyle,
   selected,
   onSelect,
   onAction,
@@ -85,7 +99,7 @@ export function PartsCanvas({
   const draw = (name: string, onDark: boolean): string | undefined => {
     if (!registry.has(name)) return undefined;
     const box = tokens.optical[registry.get(name).opticalShape];
-    const spec: IconSpec = { name, language: language.id, canvas: tokens.canvas, elements: [{ primitive: name, ...box }] };
+    const spec: IconSpec = { name, language: language.id, canvas: tokens.canvas, style, elements: [{ primitive: name, ...box }] };
     try {
       return renderSvg(compose(spec, language, { registry }), language, { onDark });
     } catch {
@@ -106,7 +120,7 @@ export function PartsCanvas({
         ]
       : [{ primitive: subject, ...box }];
     try {
-      return renderSvg(compose({ name: subject, language: language.id, canvas: c, elements }, language, { registry }), language, {
+      return renderSvg(compose({ name: subject, language: language.id, canvas: c, style, elements }, language, { registry }), language, {
         onDark,
       });
     } catch {
@@ -117,22 +131,26 @@ export function PartsCanvas({
   // True size times magnification, and never anything else. At zoom 1 a 16px
   // icon is 16 real pixels, which is the only view that tells you what ships.
   const px = size * zoom;
-  // The grid track follows the drawn size, or two large swatches will not fit a
-  // track sized for small ones and the icons get squeezed narrow.
-  const gridStyle = { "--part-size": `${px}px` } as CSSProperties;
+  // The grid track follows the drawn size, so a 16px part and a 96px one both
+  // sit in a square cell with the same air around the drawing.
+  const gridStyle = { "--tile-size": `${px}px` } as CSSProperties;
   const cell = (name: string, label: string, extra?: { draft?: boolean; excepted?: boolean }) => {
     const dim = reached !== undefined && !reached.has(name);
     return (
       <button
         key={name}
         type="button"
-        className={`part ${dim ? "dim" : ""} ${selected === name ? "sel" : ""}`}
+        // The native tooltip stays on as well as the styled one: the hover
+        // label is centred under the cell and the last column is near the edge
+        // of a scrolling pane, so a long name can be clipped. `title` never is.
+        title={label}
+        className={`tile ${dim ? "dim" : ""} ${selected === name ? "sel" : ""}`}
         onClick={() => onSelect(selected === name ? undefined : name)}
       >
-        {extra?.draft && <span className="part-draft">draft</span>}
-        {extra?.excepted && <span className="part-flag" title="drawn against the language" />}
-        <Duo render={(onDark) => <IconSvg svg={draw(name, onDark)} size={px} />} />
-        <span className="part-name">{label}</span>
+        {extra?.draft && <span className="tile-mark draft" title="draft — not approved yet" />}
+        {extra?.excepted && <span className="tile-mark flag" title="drawn against the language" />}
+        <Swatch tone="surface" render={(onDark) => <IconSvg svg={draw(name, onDark)} size={px} />} />
+        <span className="tile-name">{label}</span>
       </button>
     );
   };
@@ -143,6 +161,49 @@ export function PartsCanvas({
 
   return (
     <div className="parts-canvas">
+      {/*
+       * The two controls that decide what a part looks like here, kept with the
+       * parts rather than on the view switch above. Optical size changes the
+       * tokens and therefore the drawing; magnification changes nothing but how
+       * close you are standing.
+       */}
+      <div className="pc-toolbar">
+        {sizes.map((c) => (
+          <button key={c} className={`chip ${size === c ? "on" : ""}`} onClick={() => onSize(c)} title={`Design at ${c}px`}>
+            {c}px
+          </button>
+        ))}
+        <span className="bar-sep" />
+        {[1, 2, 4].map((z) => (
+          <button
+            key={z}
+            className={`chip ${zoom === z ? "on" : ""}`}
+            onClick={() => onZoom(z)}
+            title={z === 1 ? "True size: exactly what ships" : `${z} times larger than it ships`}
+          >
+            {z}×
+          </button>
+        ))}
+        {language.style.allowed.length > 1 && (
+          <>
+            <span className="bar-sep" />
+            {language.style.allowed.map((s) => (
+              <button
+                key={s}
+                className={`chip ${style === s ? "on" : ""}`}
+                onClick={() => onStyle(s)}
+                title={s === "filled" ? "Every part as a solid shape with its detail knocked out" : "Every part as strokes"}
+              >
+                {s}
+              </button>
+            ))}
+          </>
+        )}
+        <span className="muted small-text">
+          {zoom === 1 ? `true size · ${size} real pixels` : `${size}px shown ${zoom}× larger`}
+        </span>
+      </div>
+
       {focus && (
         <p className="scope-note">
           <b>{focus}</b> is declared by {registry.consumersOf(focus).length} parts. The rest are dimmed because this
@@ -153,7 +214,7 @@ export function PartsCanvas({
       <h3 className="canvas-head">
         Built in <span className="muted">· every part your icons are made of</span>
       </h3>
-      <div className="part-grid" style={gridStyle}>{builtins.map((p: Primitive) => cell(p.name, p.name, { excepted: !!exceptions[p.name] }))}</div>
+      <div className="tile-grid" style={gridStyle}>{builtins.map((p: Primitive) => cell(p.name, p.name, { excepted: !!exceptions[p.name] }))}</div>
 
       <h3 className="canvas-head">
         Your elements{" "}
@@ -164,7 +225,7 @@ export function PartsCanvas({
         </span>
       </h3>
       {custom.length > 0 && (
-        <div className="part-grid" style={gridStyle}>
+        <div className="tile-grid" style={gridStyle}>
           {custom.map((e) => cell(e.name, e.name, { draft: e.status === "draft", excepted: !!exceptions[e.name] }))}
         </div>
       )}
@@ -172,13 +233,13 @@ export function PartsCanvas({
       <h3 className="canvas-head">
         Icons made from them <span className="muted">· the parts are the mechanism, these are what ships</span>
       </h3>
-      <div className="part-grid" style={gridStyle}>
+      <div className="tile-grid" style={gridStyle}>
         {COMPOSED.map(([label, subject, badge]) => {
           const dim = reached !== undefined && !reached.has(subject) && !(badge && reached.has(badge));
           return (
-            <div key={label} className={`part static ${dim ? "dim" : ""}`}>
-              <Duo render={(onDark) => <IconSvg svg={drawComposed(subject, badge, onDark)} size={px} />} />
-              <span className="part-name">{label}</span>
+            <div key={label} title={label} className={`tile static ${dim ? "dim" : ""}`}>
+              <Swatch tone="surface" render={(onDark) => <IconSvg svg={drawComposed(subject, badge, onDark)} size={px} />} />
+              <span className="tile-name">{label}</span>
             </div>
           );
         })}
@@ -247,6 +308,7 @@ function SelectedPart({
   onException: (name: string, exception: ConstructionException | undefined) => void;
   onClose: () => void;
 }) {
+  const ground = useGround();
   const [editing, setEditing] = useState(false);
   const [outline, setOutline] = useState(record?.outline.join("\n") ?? "");
   const [error, setError] = useState<string>();
@@ -339,10 +401,10 @@ function SelectedPart({
                 {impacts.map((impact) => (
                   <figure key={impact.icon.spec.name} className={impact.changed ? "changed" : ""}>
                     <div className="pair">
-                      <div className="swatch light">
+                      <div className={`swatch ${ground}`}>
                         <IconSvg svg={impact.before.svg} size={40} />
                       </div>
-                      <div className="swatch light">
+                      <div className={`swatch ${ground}`}>
                         <IconSvg svg={impact.after.svg} size={40} />
                       </div>
                     </div>
@@ -452,11 +514,11 @@ function ExceptionEditor({
       </p>
       <div className="exception-pair">
         <figure>
-          <Duo render={(onDark) => <IconSvg svg={drawWith(name, onDark, language.construction)} size={px} />} />
+          <Swatch render={(onDark) => <IconSvg svg={drawWith(name, onDark, language.construction)} size={px} />} />
           <figcaption>the language</figcaption>
         </figure>
         <figure>
-          <Duo render={(onDark) => <IconSvg svg={drawWith(name, onDark, preview)} size={px} />} />
+          <Swatch render={(onDark) => <IconSvg svg={drawWith(name, onDark, preview)} size={px} />} />
           <figcaption>{changed ? (applied ? "this exception" : "not applied yet") : "same, nothing changed"}</figcaption>
         </figure>
       </div>

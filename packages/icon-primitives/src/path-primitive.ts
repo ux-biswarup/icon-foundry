@@ -1,7 +1,9 @@
 import type { OpticalShape } from "@icon-foundry/icon-language";
 import { shapeBounds, unionBounds, type Shape } from "./geometry.js";
 import { pathShapeFromData } from "./path-data.js";
-import { inferOpticalShape, type Primitive, type PrimitiveCategory } from "./primitive.js";
+import { inferOpticalShape, type Primitive, type PrimitiveCategory, type PrimitiveContext } from "./primitive.js";
+import { arcify } from "./arcify.js";
+import { skeletonFromCommands, skeletonToCommands } from "./skeleton.js";
 
 /**
  * A primitive defined by data instead of code: SVG path strings per style.
@@ -18,11 +20,46 @@ export interface PathPrimitiveDefinition {
   keywords?: string[];
   /** Set when the concept demands angles outside the language grammar. */
   freeAngles?: boolean;
+  /**
+   * How the joints of this element are rounded.
+   *
+   * `language` — the default — treats the paths as a skeleton and rounds every
+   * line-to-line joint by the language's ramp at draw time. That is the whole
+   * construction method in one line: straight segments are authored, roundness
+   * is a property of the set, and changing the ramp re-rounds every element
+   * without anyone reopening a drawing.
+   *
+   * `keep` draws the paths exactly as authored, for geometry whose corners were
+   * drawn deliberately and are not the language's business.
+   */
+  corners?: "language" | "keep";
   origin?: "approved" | "draft";
   /** Path data for the outline style. Closed paths are fillable by default. */
   outline: string[];
   /** Path data for the filled style. Falls back to the fillable outline paths. */
   filled?: string[];
+}
+
+/**
+ * Round one authored shape by the language's ramp.
+ *
+ * Radii are divided by the scale the composer will apply, the same way
+ * `localRadius` does, so an element's corners come out the size the language
+ * asked for rather than the size its natural box happened to be.
+ *
+ * Anything that is not path geometry is returned untouched: a rect states its
+ * own radius and a circle has no corners.
+ */
+function round(shape: Shape, ctx: PrimitiveContext): Shape {
+  if (shape.kind !== "path" || ctx.cornerRadius <= 0 || ctx.scale <= 0) return shape;
+  const skeleton = skeletonFromCommands(shape.commands);
+  const construction = ctx.construction;
+  const rounded = arcify(skeleton, {
+    cornerRadius: ctx.cornerRadius / ctx.scale,
+    ...(construction?.corners && { corners: construction.corners }),
+    ...(construction?.cornerSnap && { snap: true, grid: (ctx.grid ?? 0) / ctx.scale }),
+  });
+  return { ...shape, commands: skeletonToCommands(rounded) };
 }
 
 export class PathPrimitiveError extends Error {
@@ -106,7 +143,11 @@ export function definePathPrimitive(input: unknown): Primitive {
     keywords,
     ...(def.freeAngles === true && { freeAngles: true }),
     origin: def.origin === "approved" ? "approved" : "draft",
-    build: (ctx) => (ctx.style === "filled" ? filled : outline),
+    build: (ctx) => {
+      const shapes = ctx.style === "filled" ? filled : outline;
+      if (def.corners === "keep") return shapes;
+      return shapes.map((shape) => round(shape, ctx));
+    },
   };
   return primitive;
 }

@@ -18,7 +18,10 @@ import {
   type Construction,
   type ConstructionException,
   type ConstructionTrait,
+  type Box,
   type IconLanguageInput,
+  type IconStyle,
+  type OpticalShape,
   type OpticsTokens,
   type SizeInput,
   type SizeTokens,
@@ -35,6 +38,10 @@ import { ConstructionPanel } from "../components/ConstructionPanel.js";
 import { ExemplarBoard } from "../components/ExemplarBoard.js";
 import { HandChat } from "../components/HandChat.js";
 import { PartsCanvas } from "../components/PartsCanvas.js";
+import { MethodCanvas } from "../components/MethodCanvas.js";
+import { CornerRamp } from "../components/CornerRamp.js";
+import { KeylineSheet } from "../components/KeylineSheet.js";
+import { OpticalShapesPanel } from "../components/OpticalShapesPanel.js";
 import { AxisSlider, Choice, Field, Lands, NumberField, StringList, Toggle, WordList } from "../components/LanguageFields.js";
 import { useLibrary } from "../store/LibraryContext.js";
 
@@ -42,6 +49,7 @@ const CAPS: readonly StrokeCap[] = ["butt", "round", "square"];
 const JOINS: readonly StrokeJoin[] = ["miter", "round", "bevel"];
 const CORNERS: readonly BadgeCorner[] = ["top-right", "top-left", "bottom-right", "bottom-left"];
 const DIAGONALS: readonly DiagonalDirection[] = ["up-right", "up-left", "none"];
+const STYLES: readonly IconStyle[] = ["outline", "filled"];
 const ANGLE_SETS: Array<{ label: string; angles: number[]; note: string }> = [
   { label: "Orthogonal + 45°", angles: [0, 45, 90, 135], note: "Technical drawing. Lines run flat, upright, or on the diagonal." },
   { label: "Orthogonal only", angles: [0, 90], note: "Strictest. Everything is flat or upright." },
@@ -57,6 +65,31 @@ const AXES: Array<[keyof IconLanguage["character"]["axes"], string, string]> = [
 ];
 
 type Draft = IconLanguageInput;
+
+/**
+ * Put keyline boxes on the size that owns them, or take them off again.
+ *
+ * The primary optical size is stored at the top level of a language file and
+ * every other size inside `sizes`, so one edit has two possible destinations.
+ * Passing `undefined` deletes rather than writing an empty object: absent
+ * means derived, and a file should record only real decisions.
+ */
+function writeOptical(draft: Draft, canvas: number, optical: Draft["optical"] | undefined): Draft {
+  const out: Draft = { ...draft };
+  if (canvas === draft.canvas) {
+    if (optical) out.optical = optical;
+    else delete out.optical;
+    return out;
+  }
+  out.sizes = (draft.sizes ?? []).map((s) => {
+    if (s.canvas !== canvas) return s;
+    const next = { ...s };
+    if (optical) next.optical = optical;
+    else delete next.optical;
+    return next;
+  });
+  return out;
+}
 
 /**
  * The language editor: where a team states its rules, guidelines and
@@ -85,6 +118,46 @@ export function LanguagePage() {
   const [status, setStatus] = useState<AgentStatus>({ model: null, error: null, reachable: false });
   useEffect(() => void agentStatus().then(setStatus), []);
   const [reviewing, setReviewing] = useState(false);
+  /** Parts, or the keyline sheet the parts are sized against. */
+  const [view, setView] = useState<"parts" | "keylines" | "method">("parts");
+  /**
+   * Which style the canvas draws. A filled style is a property of the *set* —
+   * whether these shapes still read as one hand when they are solid — so it is
+   * judged here, on every part at once, rather than one icon at a time.
+   */
+  const [drawStyle, setDrawStyle] = useState<"outline" | "filled">("outline");
+  const [shapeAt, setShapeAt] = useState<{ canvas: number; shape: OpticalShape }>();
+  /**
+   * Which group of controls the rail is showing while the parts canvas is up.
+   *
+   * "Primitives" is deliberately not in here. The optical shapes *are* the
+   * keyline boxes — picking one used to throw the canvas over to the keyline
+   * sheet, which is the tell that it was never a third peer of the hand and the
+   * rules but the one rail that sheet has. So it follows the view instead of
+   * being chosen, and this remembers only the choice a designer actually makes.
+   */
+  const [tab, setTab] = useState<"hand" | "rules">("hand");
+
+  /*
+   * The rail belongs to the canvas, not the other way round.
+   *
+   * Looking at the keyline sheet, the only controls that mean anything are the
+   * boxes it draws, so that is the whole rail. Looking at the parts, the boxes
+   * are not what you are moving, so they are not on offer. Derived rather than
+   * synced: a `tab` that could disagree with `view` is a state pair that will
+   * eventually disagree.
+   */
+  const rail: "primitives" | "hand" | "rules" | "method" =
+    view === "keylines" ? "primitives" : view === "method" ? "method" : tab;
+  const railTabs =
+    view === "keylines"
+      ? ([["primitives", "Primitives"]] as const)
+      : view === "method"
+        ? ([["method", "Construction"]] as const)
+        : ([
+            ["hand", "The hand"],
+            ["rules", "Rules"],
+          ] as const);
 
   const current = useMemo(() => {
     if (!library) return undefined;
@@ -185,6 +258,50 @@ export function LanguagePage() {
       }),
     [],
   );
+  /**
+   * Resize one keyline box.
+   *
+   * Only the size is editable; the origin is recomputed by centring, because
+   * an off-centre keyline box is a per-part correction rather than a property
+   * of the whole set. The box is written to the size that owns it — the
+   * primary size lives at the top level of the file, every other size in
+   * `sizes` — and the other three shapes are written alongside it, because
+   * `optical` is parsed as a whole and a partial object would silently take
+   * derived values for the shapes it left out.
+   */
+  const setOpticalBox = useCallback(
+    (canvas: number, shape: OpticalShape, size: { width: number; height: number }) =>
+      setDraft((d) => {
+        if (!d) return d;
+        let parsed: IconLanguage;
+        try {
+          parsed = parseIconLanguage(d);
+        } catch {
+          return d;
+        }
+        const tokens = parsed.sizes[canvas];
+        if (!tokens) return d;
+        const width = Math.min(size.width, canvas);
+        const height = Math.min(size.height, canvas);
+        const next: Record<string, Box> = {};
+        for (const s of OPTICAL_SHAPES) {
+          const box = tokens.optical[s];
+          next[s] =
+            s === shape
+              ? { x: (canvas - width) / 2, y: (canvas - height) / 2, width, height }
+              : { ...box };
+        }
+        return writeOptical(d, canvas, next as unknown as NonNullable<Draft["optical"]>);
+      }),
+    [],
+  );
+
+  /** Drop the authored boxes for one size so they go back to being derived. */
+  const resetOptical = useCallback(
+    (canvas: number) => setDraft((d) => (d ? writeOptical(d, canvas, undefined) : d)),
+    [],
+  );
+
   /** The primary size lives at the top level of the file, not in `sizes`. */
   const patchPrimary = useCallback(
     (next: Partial<SizeInput>) =>
@@ -484,31 +601,33 @@ export function LanguagePage() {
         {/* Middle: every part, live. The reason three columns are worth having. */}
         <div className="col canvas">
           <div className="canvas-bar">
-            {/* Optical size. Changes the tokens, and therefore the drawing. */}
-            {sizeOptions.map((c) => (
-              <button key={c} className={`chip ${size === c ? "on" : ""}`} onClick={() => setCanvasSize(c)} title={`Design at ${c}px`}>
-                {c}px
+            {/* What you are looking at: the parts, or the rule they are sized to.
+                Nothing else lives here — size and magnification belong to the
+                parts and travel with them, the way pan and zoom belong to the
+                keyline sheet. A bar that mixes the two implies the sizes apply
+                to whichever view is up, and on the sheet they never did: it
+                draws every size at once. */}
+            {/* Three questions a set has to answer: do these look like one hand,
+                are they the same size, are they built the same way. */}
+            {(["parts", "keylines", "method"] as const).map((v) => (
+              <button key={v} className={`chip ${view === v ? "on" : ""}`} onClick={() => setView(v)}>
+                {v === "parts" ? "Parts" : v === "keylines" ? "Keylines" : "Method"}
               </button>
             ))}
-            <span className="bar-sep" />
-            {/* Magnification. Changes nothing but how close you are standing. */}
-            {[1, 2, 4].map((z) => (
-              <button
-                key={z}
-                className={`chip ${zoom === z ? "on" : ""}`}
-                onClick={() => setZoom(z)}
-                title={z === 1 ? "True size: exactly what ships" : `${z} times larger than it ships`}
-              >
-                {z}×
-              </button>
-            ))}
-            <span className="muted small-text">
-              {zoom === 1 ? `true size · ${size} real pixels` : `${size}px shown ${zoom}× larger`}
-            </span>
             <span className="spacer" />
             {dirty && <span className="muted small-text">unsaved</span>}
           </div>
-          {preview && (
+          {preview && view === "keylines" && (
+            <KeylineSheet
+              language={preview}
+              registry={library.registry()}
+              sizes={sizeOptions}
+              selected={shapeAt}
+              onSelect={setShapeAt}
+              onChange={setOpticalBox}
+            />
+          )}
+          {preview && view === "parts" && (
             <PartsCanvas
               library={library}
               language={preview}
@@ -516,10 +635,26 @@ export function LanguagePage() {
               focus={focusTrait}
               size={size}
               zoom={zoom}
+              sizes={sizeOptions}
+              onSize={setCanvasSize}
+              onZoom={setZoom}
+              style={drawStyle}
+              onStyle={setDrawStyle}
               selected={selectedPart}
               onSelect={setSelectedPart}
               onAction={act}
               onException={setException}
+            />
+          )}
+          {preview && view === "method" && (
+            <MethodCanvas
+              library={library}
+              language={preview}
+              registry={library.registry()}
+              size={size}
+              selected={selectedPart}
+              onSelect={setSelectedPart}
+              onAction={act}
             />
           )}
           {reviewing && preview && (
@@ -529,8 +664,124 @@ export function LanguagePage() {
 
         {/* Right: everything that moves the drawing. Nothing here is words. */}
         <div className="col controls">
-          <p className="col-head">The hand</p>
-          <p className="col-sub">Everything here changes what you see in the middle.</p>
+          <div className="rail-tabs" role="tablist">
+            {railTabs.map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={rail === id}
+                className={`rail-tab ${rail === id ? "on" : ""}`}
+                // A view with one rail has its tab already selected and nothing
+                // to switch to. Only the parts view offers a choice.
+                onClick={id === "hand" || id === "rules" ? () => setTab(id) : undefined}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {rail === "primitives" && (
+            <section>
+              <h2>Optical shapes</h2>
+              <p className="muted small-text">
+                Four boxes, so shapes of different proportions read as the same size. Every part declares one, and the
+                count beside each is how many it moves.
+              </p>
+              {preview && (
+                <OpticalShapesPanel
+                  language={preview}
+                  registry={library.registry()}
+                  sizes={sizeOptions}
+                  selected={shapeAt}
+                  // The sheet is already up: this rail only exists while it is.
+                  onSelect={setShapeAt}
+                  onChange={setOpticalBox}
+                  onReset={resetOptical}
+                />
+              )}
+              <Lands kind="guidance">
+                Most parts fit one of the four. A diagonal sits awkwardly in all of them; give it the closest box and
+                correct the rest by eye with a per-part exception.
+              </Lands>
+            </section>
+          )}
+
+          {rail === "method" && preview && (
+            <>
+              <section>
+                <h2>Personality</h2>
+                <p className="muted small-text">
+                  The input. Everything below is either derived from these or stated over the top of them.
+                </p>
+                {derived && (
+                  <DerivationPanel
+                    derived={derived}
+                    derivation={preview.derivation}
+                    canvas={preview.defaultCanvas}
+                    character={character}
+                    overrides={overrides}
+                    onChangeAxes={(axes) => patchCharacter({ axes })}
+                    onChangeDerivation={(derivation: Derivation) => patch({ derivation })}
+                  />
+                )}
+              </section>
+
+              <section>
+                <h2>Line angles</h2>
+                <p className="muted small-text">
+                  What a segment is allowed to run at. The editor pulls a dragged vertex onto these before it
+                  considers the grid, and the validator flags anything drawn off them.
+                </p>
+                <div className="angle-sets">
+                  {ANGLE_SETS.map((set) => {
+                    const on = JSON.stringify(grammar.angles) === JSON.stringify(set.angles);
+                    return (
+                      <button key={set.label} className={on ? "on" : ""} onClick={() => patchGrammar({ angles: set.angles })}>
+                        <strong>{set.label}</strong>
+                        <span className="muted small-text">{set.note}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section>
+                <h2>Corners</h2>
+                <p className="muted small-text">
+                  Straight segments are drawn; roundness is the language's. A gentle bend can take a generous radius,
+                  and the same radius on a sharp point eats the point — so it is a ramp, not a number.
+                </p>
+                <CornerRamp
+                  corners={preview.construction.corners}
+                  tokens={preview.sizes[size] ?? preview.sizes[preview.defaultCanvas]!}
+                  snap={preview.construction.cornerSnap}
+                  onChange={(corners) => patchConstruction({ corners })}
+                  onSnap={(cornerSnap) => patchConstruction({ cornerSnap })}
+                />
+                <Lands kind="checked">
+                  Applied to every element drawn as a skeleton, every time it is drawn. Nothing is baked in, so
+                  changing this re-rounds the set.
+                </Lands>
+              </section>
+
+              <section>
+                <h2>How a part is built</h2>
+                <ConstructionPanel
+                  construction={preview.construction}
+                  authored={draft.construction}
+                  character={character}
+                  derivation={preview.derivation}
+                  registry={library.registry()}
+                  onChange={patchConstruction}
+                  onClear={clearConstruction}
+                  onFocus={setFocusTrait}
+                />
+              </section>
+            </>
+          )}
+
+          {rail === "hand" && (
+            <>
           <section>
             <h2>Personality</h2>
 
@@ -574,6 +825,11 @@ export function LanguagePage() {
             )}
           </section>
 
+            </>
+          )}
+
+          {rail === "rules" && (
+            <>
           <section>
             <h2>Construction</h2>
             <Field label="Line angles" hint={<Lands kind="checked">Checked on every icon. Geometry off these angles is flagged.</Lands>}>
@@ -627,6 +883,60 @@ export function LanguagePage() {
                   onChange={(silhouette) => patchGrammar({ silhouette })}
                 />
               </div>
+            </Field>
+          </section>
+
+          <section>
+            <h2>Styles</h2>
+            <p className="muted small-text">
+              Outline icons are built from strokes. Filled icons are the same drawing read as solid, with the interior
+              detail knocked out of the fill — which is why a closed shape is worth more than a clever one.
+            </p>
+            <Field label="Styles this language allows" hint={<Lands kind="checked">An icon in a style the language does not allow is refused.</Lands>}>
+              <div className="toggles">
+                {STYLES.map((st) => {
+                  const allowed = draft.style.allowed ?? [draft.style.default];
+                  return (
+                    <Toggle
+                      key={st}
+                      label={st}
+                      value={allowed.includes(st)}
+                      onChange={(on) => {
+                        const next = on ? [...allowed, st] : allowed.filter((x) => x !== st);
+                        // The default style must remain allowed, or the language
+                        // refuses every icon it draws by default.
+                        if (!next.includes(draft.style.default)) return;
+                        patch({ style: { ...draft.style, allowed: next } });
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </Field>
+            <Field label="Default style" hint={<Lands>What an icon is drawn in when it does not say.</Lands>}>
+              <Choice
+                options={draft.style.allowed ?? [draft.style.default]}
+                value={draft.style.default}
+                onChange={(def) => patch({ style: { ...draft.style, default: def } })}
+              />
+            </Field>
+            <Field
+              label="Concepts that need a filled version"
+              hint={
+                <Lands kind="guidance">
+                  Listed in the Library beside the concepts with no icon at all. Nothing is refused for missing one —
+                  which icons your product needs filled is a fact about your product, and no measurement of a drawing
+                  produces it.
+                </Lands>
+              }
+            >
+              <WordList
+                value={draft.style.filled?.requiredFor ?? []}
+                placeholder="navigation, state, toolbar"
+                onChange={(requiredFor) =>
+                  patch({ style: { ...draft.style, filled: { requiredFor } } })
+                }
+              />
             </Field>
           </section>
 
@@ -695,6 +1005,8 @@ export function LanguagePage() {
               than as retouched.
             </Lands>
           </section>
+            </>
+          )}
 
         </div>
       </div>
@@ -802,6 +1114,9 @@ function SizeControls({
               step={0.25}
               onChange={(minNegativeSpace) => onChange({ minNegativeSpace })}
             />
+          </Field>
+          <Field label="Smallest knock-out">
+            <NumberField value={size.minCutout} step={0.25} min={0} onChange={(minCutout) => onChange({ minCutout })} />
           </Field>
           <Field label="Parts budget">
             <NumberField

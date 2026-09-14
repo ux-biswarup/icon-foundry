@@ -7,12 +7,15 @@ import {
   type IconLanguage,
 } from "@icon-foundry/icon-language";
 import { defaultRegistry, definePathPrimitive, type PrimitiveRegistry } from "@icon-foundry/icon-primitives";
-import { parseConceptComposition, parseIconSpec, type IconSpec } from "@icon-foundry/icon-spec";
+import { offify } from "@icon-foundry/icon-composer";
+import { parseConceptComposition, parseIconSpec, specElementNames, type IconSpec } from "@icon-foundry/icon-spec";
 import type { FileStore } from "./store.js";
 import {
   CONCEPTS_DIR,
   ELEMENTS_DIR,
+  FILLED_STATUSES,
   ICONS_DIR,
+  VARIANT_KINDS,
   ICON_STATUSES,
   LANGUAGES_DIR,
   LEGACY_LANGUAGE_PATH,
@@ -28,6 +31,10 @@ import {
   type ConceptStatus,
   type ElementRecord,
   type ElementStatus,
+  type FilledCoverage,
+  type FilledStatus,
+  type FilledVariant,
+  type VariantKind,
   type IconRecord,
   type IconStatus,
   type LanguageVersion,
@@ -109,6 +116,30 @@ export function parseIconRecord(value: unknown): IconRecord {
       ...(typeof value.source.brief === "string" && { brief: value.source.brief }),
       ...(typeof value.source.model === "string" && { model: value.source.model }),
     };
+  }
+  if (isRecord(value.variants)) {
+    const variants: Partial<Record<VariantKind, FilledVariant>> = {};
+    for (const kind of VARIANT_KINDS) {
+      const raw = value.variants[kind];
+      if (!isRecord(raw)) continue;
+      if (typeof raw.status !== "string" || !FILLED_STATUSES.includes(raw.status as FilledStatus)) {
+        throw new LibraryError(`icon ${spec.name}: ${kind}.status must be one of ${FILLED_STATUSES.join(", ")}`);
+      }
+      const variant: FilledVariant = {
+        status: raw.status as FilledStatus,
+        updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : now,
+      };
+      if (raw.spec !== undefined) {
+        const drawn = parseIconSpec(raw.spec);
+        // An `off` variant is named for what it is, so both spellings are its own.
+        if (drawn.name !== spec.name && drawn.name !== `${spec.name}-${kind}`) {
+          throw new LibraryError(`icon ${spec.name}: its ${kind} version is named "${drawn.name}"`);
+        }
+        variant.spec = drawn;
+      }
+      variants[kind] = variant;
+    }
+    if (Object.keys(variants).length > 0) record.variants = variants;
   }
   if (typeof value.replacedBy === "string") record.replacedBy = value.replacedBy;
   if (typeof value.concept === "string") record.concept = value.concept;
@@ -550,16 +581,15 @@ export class Library {
       const strong = new Set([...tokenize(record.spec.name), ...record.tags.flatMap(tokenize), ...record.concepts.flatMap(tokenize)]);
       const description = typeof record.spec.meta?.description === "string" ? tokenize(record.spec.meta.description) : [];
       const primitiveWords = new Set<string>();
-      const walk = (els: IconSpec["elements"]) => {
-        for (const el of els) {
-          if (el.children) walk(el.children);
-          else if (el.primitive && registry.has(el.primitive)) {
-            const p = registry.get(el.primitive);
+      const walk = (names: readonly string[]) => {
+        for (const name of names) {
+          if (registry.has(name)) {
+            const p = registry.get(name);
             for (const k of [p.name, ...p.keywords]) primitiveWords.add(k.toLowerCase());
           }
         }
       };
-      walk(record.spec.elements);
+      walk(specElementNames(record.spec));
 
       let score = 0;
       for (const term of terms) {
@@ -721,6 +751,116 @@ export class Library {
     );
   }
 
+  /* --------------------------- the filled style ----------------------- */
+
+  /**
+   * The spec to draw for an icon's filled version, or undefined when it has none.
+   *
+   * An authored filled drawing wins; otherwise it is the same spec asked for in
+   * the filled style, which is the whole economy of this feature — the closed
+   * loops are already there, they are simply read as solid.
+   */
+  variantSpec(name: string, kind: VariantKind = "filled"): IconSpec | undefined {
+    const record = this.require(name);
+    const variant = record.variants?.[kind];
+    if (!variant) return undefined;
+    if (variant.spec) return variant.spec;
+    // Derived: computed from the canonical drawing every time, so a language
+    // change reaches the variant without anyone reopening it.
+    if (kind === "filled") return { ...record.spec, style: "filled" };
+    return offify(record.spec, this.languageFor(record.spec), { registry: this.registry() });
+  }
+
+  /** @deprecated Use `variantSpec(name, "filled")`. Kept while callers migrate. */
+  filledSpec(name: string): IconSpec | undefined {
+    return this.variantSpec(name, "filled");
+  }
+
+  /**
+   * Give an icon a filled version, or replace the one it has.
+   *
+   * `derived` states that the closed loops are enough and nothing was drawn.
+   * Passing a spec means someone drew the difference, so the variant starts as
+   * a draft unless a status is given.
+   */
+  async setVariant(
+    name: string,
+    kind: VariantKind,
+    variant: { status?: FilledStatus; spec?: IconSpec } = {},
+  ): Promise<IconRecord> {
+    const record = this.require(name);
+    const status: FilledStatus = variant.status ?? (variant.spec ? "draft" : "derived");
+    if (!FILLED_STATUSES.includes(status)) {
+      throw new LibraryError(`${kind} status must be one of ${FILLED_STATUSES.join(", ")}`);
+    }
+    if (variant.spec && variant.spec.name !== name && variant.spec.name !== `${name}-${kind}`) {
+      throw new LibraryError(`a ${kind} version of "${name}" cannot be named "${variant.spec.name}"`);
+    }
+    const language = this.languageFor(record.spec);
+    if (kind === "filled" && !language.style.allowed.includes("filled")) {
+      throw new LibraryError(`${language.name} does not allow the filled style`);
+    }
+    const next: IconRecord = {
+      ...record,
+      variants: {
+        ...record.variants,
+        [kind]: { status, updatedAt: new Date().toISOString(), ...(variant.spec && { spec: variant.spec }) },
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeIcon(next);
+    this.icons_.set(name, next);
+    return next;
+  }
+
+  /** Take a variant away. Having none is a normal state, not damage. */
+  async clearVariant(name: string, kind: VariantKind): Promise<IconRecord> {
+    const record = this.require(name);
+    const variants = { ...record.variants };
+    delete variants[kind];
+    const next: IconRecord = { ...record, updatedAt: new Date().toISOString() };
+    if (Object.keys(variants).length > 0) next.variants = variants;
+    else delete next.variants;
+    await this.writeIcon(next);
+    this.icons_.set(name, next);
+    return next;
+  }
+
+  /** @deprecated Use `setVariant(name, "filled", …)`. */
+  async setFilled(name: string, variant: { status?: FilledStatus; spec?: IconSpec } = {}): Promise<IconRecord> {
+    return this.setVariant(name, "filled", variant);
+  }
+
+  /** @deprecated Use `clearVariant(name, "filled")`. */
+  async clearFilled(name: string): Promise<IconRecord> {
+    return this.clearVariant(name, "filled");
+  }
+
+  /**
+   * Coverage against the language's filled policy.
+   *
+   * The policy lists concept tags, not icon names, and an icon answers to one
+   * if its concept or any of its tags matches. Nothing here refuses anything:
+   * it is a list a person reads, in the same place `gaps` reports the concepts
+   * with no icon at all.
+   */
+  filledCoverage(languageId?: string, kind: VariantKind = "filled"): FilledCoverage {
+    const id = languageId ?? this.manifest_.language;
+    const language = this.languages_.get(id) ?? this.language;
+    const wanted = new Set(language.style.filled.requiredFor.map((t) => t.toLowerCase()));
+    const published = this.icons().filter((i) => i.spec.language === id && i.status === "published");
+    const required = published.filter((i) =>
+      [i.concept, ...i.tags, ...i.concepts].some((t) => t !== undefined && wanted.has(t.toLowerCase())),
+    );
+    return {
+      kind,
+      policy: [...language.style.filled.requiredFor],
+      required,
+      missing: required.filter((i) => !i.variants?.[kind]),
+      covered: published.filter((i) => i.variants?.[kind] !== undefined),
+    };
+  }
+
   /** Concepts with no published icon in a language: requests, not silence. */
   gaps(languageId?: string): ConceptRecord[] {
     const language = languageId ?? this.manifest_.language;
@@ -786,9 +926,7 @@ export class Library {
   }
 
   private usesPrimitive(spec: IconSpec, primitive: string): boolean {
-    const walk = (els: IconSpec["elements"]): boolean =>
-      els.some((el) => (el.children ? walk(el.children) : el.primitive === primitive));
-    return walk(spec.elements);
+    return specElementNames(spec).includes(primitive);
   }
 
   private require(name: string): IconRecord {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { compose } from "@icon-foundry/icon-composer";
+import { arcify, skeletonFromPathData } from "@icon-foundry/icon-primitives";
 import { lucideInspired } from "@icon-foundry/icon-language";
 import { parseIconSpec } from "@icon-foundry/icon-spec";
-import { formatNumber, renderSpecToSvg, renderSvg, shapeToPathData } from "./index.js";
+import { formatNumber, renderSpecToSvg, renderSvg, shapeToPathData, skeletonPaths, skeletonToPathData } from "./index.js";
 
 const temperatureWarehouse = parseIconSpec({
   name: "temperature-warehouse",
@@ -30,7 +31,7 @@ describe("renderSvg", () => {
       lucideInspired,
     );
     expect(svg).toBe(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>',
     );
   });
 
@@ -98,7 +99,7 @@ describe("renderSvg", () => {
       parseIconSpec({ name: "c16", language: "lucide-inspired", canvas: 16, elements: [{ primitive: "circle", x: 1, y: 1, size: 14 }] }),
       lucideInspired,
     );
-    expect(svg).toContain('viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"');
+    expect(svg).toContain('viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.25"');
   });
 
   it("can omit xmlns and dimensions for inline embedding", () => {
@@ -113,5 +114,24 @@ describe("shapeToPathData", () => {
     expect(shapeToPathData({ kind: "polyline", points: [[0, 0], [1, 1]], closed: true, fillable: true })).toBe("M0 0L1 1Z");
     expect(shapeToPathData({ kind: "rect", x: 0, y: 0, width: 2, height: 2, rx: 0, fillable: true })).toBe("M0 0H2V2H0Z");
     expect(shapeToPathData({ kind: "circle", cx: 1, cy: 1, r: 1, fillable: true })).toMatch(/^M0 1A1 1 0 1 0 2 1A1 1 0 1 0 0 1Z$/);
+  });
+});
+
+describe("skeletonPaths", () => {
+  it("writes one path per subpath, closed ones closed", () => {
+    const skeleton = skeletonFromPathData(["M2 2 L10 2 L10 10 Z", "M14 2 L14 10"]);
+    expect(skeletonPaths(skeleton)).toEqual(["M2 2L10 2L10 10Z", "M14 2L14 10"]);
+    expect(skeletonToPathData(skeleton)).toBe("M2 2L10 2L10 10ZM14 2L14 10");
+  });
+
+  it("rounds to the precision the renderer uses everywhere else", () => {
+    const skeleton = skeletonFromPathData("M0.00004 0 L1.23456 0");
+    expect(skeletonToPathData(skeleton)).toBe("M0 0L1.235 0");
+    expect(skeletonToPathData(skeleton, 5)).toBe("M0.00004 0L1.23456 0");
+  });
+
+  it("writes an arc with both radii, so a rounded corner survives the trip", () => {
+    const rounded = arcify(skeletonFromPathData("M0 0 L10 0 L10 10"), { cornerRadius: 2 });
+    expect(skeletonToPathData(rounded)).toBe("M0 0L8 0A2 2 0 0 1 10 2L10 10");
   });
 });

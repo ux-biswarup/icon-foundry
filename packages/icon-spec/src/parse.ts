@@ -1,4 +1,5 @@
 import type {
+  PartException,
   Alignment,
   Arrangement,
   ConceptComposition,
@@ -188,18 +189,57 @@ export function parseIconSpec(value: unknown): IconSpec {
   const canvas = finite(value.canvas, "spec.canvas");
   if (canvas <= 0) fail("spec.canvas", "must be greater than zero");
 
-  if (!Array.isArray(value.elements) || value.elements.length === 0) {
-    fail("spec.elements", "expected a non-empty array");
+  /*
+   * An icon says what it is made of, or where its parts sit — not both.
+   *
+   * Both would be a spec that can disagree with itself, and the first time the
+   * keyline sheet moved, one half would follow and the other would not. The
+   * per-part `except` is how an icon carries a position of its own without
+   * leaving the composition that keeps the rest of it governed.
+   */
+  const hasComposition = value.composition !== undefined;
+  const hasElements = Array.isArray(value.elements) && value.elements.length > 0;
+  if (hasComposition && hasElements) {
+    fail("spec", "expected `composition` or `elements`, not both; pin a part with `except` instead");
   }
-  const elements = value.elements.map((el, i) => parseIconElement(el, `spec.elements[${i}]`));
+  if (!hasComposition && !hasElements) {
+    fail("spec.composition", "expected a composition, or a non-empty `elements` array");
+  }
 
   if (value.meta !== undefined && !isRecord(value.meta)) fail("spec.meta", "expected an object");
 
-  const spec: IconSpec = { name: value.name, language: value.language, canvas, elements };
+  const spec: IconSpec = { name: value.name, language: value.language, canvas };
+  if (hasComposition) spec.composition = parseConceptComposition(value.composition, "spec.composition");
+  else {
+    spec.elements = (value.elements as unknown[]).map((el, i) => parseIconElement(el, `spec.elements[${i}]`));
+  }
   if (value.style !== undefined) spec.style = oneOf(value.style, STYLES, "spec.style");
   if (value.stroke !== undefined) spec.stroke = parseStrokeOverride(value.stroke, "spec.stroke");
   if (value.meta !== undefined) spec.meta = value.meta;
   return spec;
+}
+
+/**
+ * Every element name a spec refers to, derived or explicit.
+ *
+ * Asking "what is this icon made of?" must not require a language. Search,
+ * dependency checks and "is this primitive still used?" all want the parts, not
+ * the geometry, and making them resolve a spec first would mean they could not
+ * answer for an icon whose language is missing.
+ */
+export function specElementNames(spec: IconSpec): string[] {
+  const names: string[] = [];
+  if (spec.composition) {
+    for (const part of spec.composition.parts) names.push(part.element);
+  }
+  const walk = (els: readonly IconElement[]): void => {
+    for (const el of els) {
+      if (el.children) walk(el.children);
+      else if (el.primitive) names.push(el.primitive);
+    }
+  };
+  if (spec.elements) walk(spec.elements);
+  return [...new Set(names)];
 }
 
 /** Resolve an element's box, honouring the `size` shorthand. */
@@ -216,6 +256,32 @@ export function elementBox(el: IconElement): { x: number; y: number; width: numb
 const ARRANGEMENT_VALUES: readonly Arrangement[] = ["single", "badge", "stack", "row", "contain"];
 const PRIORITIES: readonly PartPriority[] = ["essential", "optional"];
 
+/**
+ * A part pinned by hand, and the reason it is.
+ *
+ * `why` is required and must say something. The whole point of routing
+ * hand-positioning through here is that it cannot happen silently: an
+ * exception with no reason is drift wearing a label, and the audit would have
+ * no way to tell the two apart.
+ */
+export function parsePartException(value: unknown, path: string): PartException {
+  if (!isRecord(value)) fail(path, "expected an object");
+  if (!isRecord(value.box)) fail(`${path}.box`, "expected an object");
+  const box = {
+    x: finite(value.box.x, `${path}.box.x`),
+    y: finite(value.box.y, `${path}.box.y`),
+    width: finite(value.box.width, `${path}.box.width`),
+    height: finite(value.box.height, `${path}.box.height`),
+  };
+  if (box.width <= 0 || box.height <= 0) fail(`${path}.box`, "must have width and height greater than zero");
+  if (typeof value.why !== "string" || value.why.trim().length < 3) {
+    fail(`${path}.why`, "expected a reason: an exception without one is indistinguishable from drift");
+  }
+  const except: PartException = { box, why: value.why.trim() };
+  if (value.align !== undefined) except.align = parseAlign(value.align, `${path}.align`);
+  return except;
+}
+
 export function parseConceptPart(value: unknown, path: string): ConceptPart {
   if (!isRecord(value)) fail(path, "expected an object");
   if (typeof value.element !== "string" || value.element.length === 0) {
@@ -229,6 +295,7 @@ export function parseConceptPart(value: unknown, path: string): ConceptPart {
     if (typeof value.role !== "string") fail(`${path}.role`, "expected a string");
     part.role = value.role;
   }
+  if (value.except !== undefined) part.except = parsePartException(value.except, `${path}.except`);
   if (value.count !== undefined) {
     const count = finite(value.count, `${path}.count`);
     if (!Number.isInteger(count) || count < 1) fail(`${path}.count`, "expected a whole number of at least 1");

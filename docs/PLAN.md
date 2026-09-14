@@ -803,6 +803,8 @@ it, and applying redrew six cells on the canvas.
 | Repair | M12 ✅, M13 ✅ | A token reaches every part, and you can see them in both grounds |
 | The hand | M14 ✅, M15 ✅, M16 ✅ | How a part is built becomes theirs, not ours |
 | The screen | M17 ✅, M18 ✅ | One page where the language is set and seen |
+| The filled style | M19 ✅, M20 ✅, M21 ✅ | A set can ship two styles, and say which icons are missing one |
+| Construction | M22 ✅, M23 ✅, M24 ✅, M25 ✅, M26 ✅ | How a shape is built is the language's, and editable |
 
 Both phases are built: M1 through M18. The property research landed mid-phase
 and revised M12 and M15 while they were being written.
@@ -811,6 +813,290 @@ and revised M12 and M15 while they were being written.
 built a real icon set with any of this, and every threshold in the audit is
 still supported by synthetic evidence alone. That last one has not moved since
 phase one, and it is the largest gap in the whole project.
+
+---
+
+## Phase 3 — The filled style
+
+Argued in full in [proposals/filled-style.md](proposals/filled-style.md). Three
+milestones, ordered by what consumes what.
+
+---
+
+### M19 — The language owns the filled policy, and feasibility is measurable
+
+The engine renders the filled style already. What it cannot do is say whether a
+given icon *survives* being filled, and no file says which icons need to.
+
+- `style.filled.requiredFor` on the language: concept tags, not icon names.
+- `minCutout` per optical size, beside `minNegativeSpace`. A hole thinner than
+  roughly a stroke width closes up, and the size that fails is always 16.
+- One function that answers "can this be filled, and if not, why not", with
+  reasons a person can act on: nothing closed to fill, a knock-out that closes
+  up, detail that is stroke-only and would be swallowed.
+
+**Done when.** A language can state the policy, and every icon in the built-in
+set can be asked the question and answers it in geometric terms.
+
+### M20 — A filled version is a variant with a status
+
+One concept, one record, two styles. A second record would double every concept
+and break the one-published-icon-per-concept invariant.
+
+- `IconRecord.filled`: absent, `derived`, or an authored spec with a status.
+- Library coverage against the policy, reported where `Gaps` already reports the
+  concepts with no icon at all.
+
+**Done when.** A filled version can be approved and published without becoming a
+separate icon, and the set can say what it is missing.
+
+### M21 — The switchers
+
+- Library: outline/filled beside the view switch, with the icons that have no
+  filled version dimmed rather than hidden.
+- Language: a style switch on the canvas bar, redrawing every part filled.
+- Create: a checkbox per style, and a named reason for whichever one failed.
+
+**Done when.** Both styles can be asked for, seen, and compared without leaving
+the page you are on.
+
+---
+
+## Phase 4 — The construction editor
+
+Argued in full in [proposals/construction-editor.md](proposals/construction-editor.md).
+The method is: straight segments on the angle set, then rounded joins. Five
+milestones, ordered by what each one needs behind it.
+
+---
+
+### M22 — The skeleton ✅ done
+
+One representation for the drawing *before* its corners are rounded: vertices,
+line and arc segments, and a per-joint radius override. Converts to and from path
+data, so every existing primitive and drawn element is usable as one.
+
+Everything else in this phase needs it. Without it, Tidy, Arcify, the editor and
+Offify each invent their own geometry model and disagree at the edges.
+
+**Done when.** Any path in the built-in vocabulary round-trips through a skeleton
+unchanged, and a skeleton can be edited without going through path data.
+
+**Status (2026-09-14): done.** Every shape the shipped vocabulary draws — 46 of
+them, across rect, line, polyline and path — round-trips through a skeleton and
+comes back as the commands it went in as.
+
+Two things the building corrected. **The skeleton needs a cubic segment kind**,
+which the proposal did not have: the curve policy calls freeform curves extremely
+rare, but rare is not never, and a representation that cannot hold one silently
+destroys geometry it was handed. It holds cubics and lets the policy measure
+them, which is the difference between a rule and a data loss.
+
+And **an arc's tangent is computed, not sampled.** The first version measured the
+angle at a joint by sampling the arc and taking its first step, which is off by
+about 2° at the sample rate used for bounds. Two degrees is nothing on a drawing
+and everything at a band boundary of the radius ramp: a 120° corner measured at
+118° takes the wrong radius. The inscribed-angle theorem gives it exactly — the
+tangent sits half the central angle from the chord — so it is exact and cheaper
+than sampling was. The test that pins it uses two arcs between the same two
+points: measured by chord both corners read 135°, when one is a 180° tangential
+continuation and the other a right angle.
+
+### M23 — Tidy ✅ done
+
+The pass pipeline: explode to segments, clean, re-detect. Run twice, because some
+passes only apply after earlier ones have normalised things, and every pass
+caught, because geometry from a paste or a cut is exactly what makes one throw.
+
+Thresholds come from the language — grid, stroke, gap, knock-out — rather than
+from constants. The pass worth the most is the one that promotes drawn geometry
+back to a *named primitive*, because that re-attaches it to the language.
+
+**Done when.** A hand-drawn four-line box comes out as the `square` primitive,
+and tidying is idempotent: running it twice more changes nothing.
+
+**Status (2026-09-14): done.** Nine passes, run twice, each caught. Four strokes
+that neither meet nor sit on the grid come out as one closed four-segment box,
+and `recognise` names it `square` with the box to place it in.
+
+**Recognition is general rather than four detectors.** Lucide needs
+`optimizeRect`, `optimizeEllipse` and `optimizeHalfCircle` as separate passes
+because it is pattern-matching path data. Having a registry means the question
+can be asked the other way round: build *every* primitive, fit it to the
+drawing's bounds, and measure the worst distance between the two. A `square` and
+a `circle` fall out of one comparison, and so does any element a team has drawn
+itself — which is the case the hand-written detectors could never have covered.
+
+Three things the building corrected. **Grid snapping is not a clean-up.** It was
+in the pipeline unconditionally until it started moving the thermometer's bulb,
+which was never off-grid by accident: a 45° construction whose length is a
+diagonal does not land on halves. It is off unless asked for, and asking is a
+decision about a drawing rather than tidying one.
+
+**A T-junction is not an interior vertex.** The first pass at counting how many
+edges meet at a point counted how many times it was *named*, which scores the
+middle of a polyline and the centre of a T identically — so merging collinear
+lines deleted the junction. Counting both ends of every segment separates them.
+
+And a test written to check something else found **the skeleton was silently
+reshaping elliptical arcs into circular ones**, by keeping the larger of `rx` and
+`ry`. No built-in draws one, so M22's round-trip tests all passed. A
+representation that quietly changes the drawing it was handed is worse than one
+that cannot hold it, so an arc now carries both radii when they differ, and the
+corner rules decline to measure an ellipse rather than applying the circular
+formula to it.
+
+### M24 — Arcify ✅ done
+
+The radius ramp becomes a language token, keyed on the angle of the corner:
+gentle bends round hard, sharp points round barely. Defaults derive from the
+existing `cornerRadius` so no existing language changes, and the grid-snapping
+rule generalises Lucide's two magic constants instead of importing them.
+
+Runs as an editor action and at compose time, which is what makes corner
+consistency structural rather than hoped for. The agent is told the method and
+given a tool that can only draw skeletons.
+
+**Done when.** Every corner in the set takes its radius from the ramp, and a
+language can change its corner feel without anyone redrawing a part.
+
+**Status (2026-09-14): done.** A cloud authored as six straight segments is
+*drawn* with six rounded joins, and not one arc appears in its path data. Change
+the language's `cornerRadius` and every joint in the set re-rounds; set it to
+zero and the set has square corners. The prompt reads the ramp out in units at
+the size being drawn, so a model is told what it gets in exchange for not drawing
+corners itself.
+
+**The defaults are multiples, not lengths.** Lucide's 2 / 1 / 0.5 are right for a
+24-unit canvas with a 2px stroke and nowhere else. Stating the ramp as multiples
+of the size's own `cornerRadius` means a right angle rounds exactly the way that
+language's rectangles already round — one roundness to reason about — and it
+scales across optical sizes for free.
+
+**A correction to the proposal.** It claimed the grid-snapping rule "produces
+Lucide's constants at Lucide's grid". It does not, and the difference is worth
+recording: Lucide's `(1+√2)/2` puts the arc's *apex* half a unit from the true
+corner, while snapping puts the *tangent points* on grid intersections. Both are
+defensible and only one can be derived rather than memorised, so this ships the
+derived one — off by default, because a switch that moves a radius away from the
+number the ramp states should be visible. Lucide's second constant, for a 45°
+corner with one axis-aligned leg, turns out to have no rule behind it at all:
+when the two legs disagree, no radius puts both tangent points on the grid. That
+case falls through to the ramp.
+
+Two bugs the building found. **Arcify was mutating the skeleton it was reading**,
+because the loop rewrites the end of the segment it last emitted and those were
+the caller's own objects — so rounding one joint moved the next joint's corner
+before it was measured. And **the sweep flag was backwards**: the turn is the
+cross product of the direction of travel in against travel out, and the vector
+that points back along the arriving edge is the negation of the first.
+
+### M25 — The Method tab ✅ done
+
+The third tab in the canvas row. Parts asks whether these look like one hand,
+Keylines whether they are the same size, Method whether they are *built* the same
+way.
+
+- The selected part as an editable skeleton: draggable vertices, snapping to the
+  grid and the angle set, each joint labelled with its radius, skeleton ↔ rounded.
+- Tidy, Arcify and Offify on its toolbar.
+- The rail collects every construction decision, which today is scattered across
+  all three columns: axes, angle set, the ramp drawn as sample corners, the curve
+  policy, caps, joins and traits.
+
+**Done when.** A part can be drawn and corrected without leaving the page, and
+every rule that governs it is visible on the same screen.
+
+**Status (2026-09-14): done.** Three tabs, three questions. The canvas shows the
+skeleton with every vertex draggable, every segment coloured by whether its angle
+is one the language allows, and every joint labelled with the angle it turns
+through and the radius the ramp gives it. Tidy and Arcify sit on its toolbar;
+Offify joins them in M26. The rail finally holds the whole of construction on one
+screen — axes, angle set, the ramp drawn as five real corners, and the traits —
+which were previously spread across all three columns of the page.
+
+**Snapping is a pull, not a rule.** A dragged vertex goes to an allowed direction
+from one of its neighbours first and the grid second, with the length along the
+ray landing on the grid too. A drag that is near neither is left where it was
+put: dragging a point two units to satisfy a rule is the editor overruling the
+person holding the mouse. ⌥ turns the angle pull off for one drag.
+
+Two things the building found. **A part may declare it needs angles the grammar
+forbids** — `freeAngles`, for a triangle or an isometric box — and the first
+version marked every one of those segments as a mistake, which is the tab
+contradicting the language it is meant to show. And rendering the tab headlessly
+was impossible until `useGround` was given a server snapshot; a component that
+cannot render outside a browser cannot be checked outside one either, which is
+the whole reason this milestone could be verified at all rather than merely
+typechecked.
+
+**Two bugs reached a person before a test did, so there is now a test that
+could have caught them.** Pointer capture was on the vertex while the move
+handler was on the stage, and the stage cancelled the drag on `pointerleave`; and
+a built-in part locked every tool with no way forward, which is a dead end that
+reads as a broken feature. The first is fixed by capturing on the stage, the
+second by *Copy to edit* — a built-in copied into an element of your own, since
+the library rightly refuses to let a drawn element take a built-in's name.
+
+The project had no DOM test environment at all, so nothing exercised a pointer.
+It has one now — jsdom, declared per file so no package pays for a DOM it does
+not use — and a press-drag-release on a vertex is covered end to end, including
+the drag that runs off the edge of the stage. Everything the drag *decides* was
+already pure and tested; what broke was the plumbing between a pointer and those
+functions, which is exactly what the old tests could not reach. The new test
+promptly found a third thing: a vertex snapped onto a vertical landed at
+15.999999999999998, because `Math.cos(Math.PI / 2)` is not zero.
+
+The verification itself found the fourth thing, which was in the example rather
+than the code: a cloud drawn `M4 18 L4 12 L8 6 L16 6 L20 12 L20 18 Z` lights up
+two segments in warning colour, because 56.3° is not on the angle set. Drawn
+properly — `L10 6` and `L14 6` — it goes quiet. That is the tab doing its job on
+its author.
+
+### M26 — Offify ✅ done
+
+The slashed variant, in process. No Inkscape, no service, no admin gate: for the
+outline style the band is a clip against two parallel half-planes, and for the
+filled style it is one more cutout in a path the renderer already builds with an
+even-odd rule.
+
+The slash comes from the language — direction from the grammar, band width from
+stroke plus the gap rule — so a team's `-off` icons match their own language,
+which the original cannot do. The result is a variant of the record, which
+generalises `IconRecord.filled` into a variants map.
+
+**Done when.** `bell` becomes `bell-off` offline, in both styles, in any language.
+
+**Status (2026-09-14): done, and with no service behind it.** `bell` becomes
+`bell-off` in process: three arcs of the original and one slash, valid against
+its own language, at any optical size. No Inkscape, no hook URL, no admin role —
+not because this is cleverer, but because the geometry is known rather than
+opaque. Cutting segments and arcs against two parallel lines is arithmetic.
+
+Everything about the slash comes from the language: direction from
+`grammar.diagonal`, angle from the nearest one `grammar.angles` permits — so a
+language of right angles gets a slash it can actually draw — and the gap from the
+stroke and the minimum-gap rule. `IconRecord.filled` generalised into
+`variants: { filled?, off? }` before a second special case could harden.
+
+**The validator caught the band width, which is the best possible way to find
+it.** The first formula was `stroke + 2 × minNegativeSpace`, which reads as
+obviously right and leaves `minNegativeSpace − stroke/2` of white: the gap rule
+is about *visible* space, measured between stroke edges, and the cut happens on
+centrelines. The icon's own language flagged the variant it had just produced.
+The fix is `2 × (stroke + gap)`, plus one grid step — because cutting to exactly
+the minimum leaves a gap that is legal by nothing at all, with the comparison
+landing on the boundary for floating point to decide.
+
+Two more found by building it. **A clipped fragment is not a little drawing to be
+placed** — a path element's natural box is measured from the origin and fitted
+into its element box, so fragments already in canvas coordinates came out
+rescaled; `natural` exists for exactly this and makes the placement an identity.
+And **the arc conversion is now written once.** The clipper had its own
+endpoint-to-centre maths, whose sign convention disagreed with SVG's and put half
+a circle on the wrong side of its own chord. `arcParameters` is shared with the
+sampler that bounds have always used — the same argument as the number
+formatter, learned again.
 
 ---
 

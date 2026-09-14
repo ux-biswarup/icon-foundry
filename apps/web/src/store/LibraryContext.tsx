@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { seedDemo } from "./demo.js";
 import { BrowserStore, DirectoryStore, forgetFolder, rememberFolder, rememberedFolder, supportsFolders } from "./stores.js";
 
+export type { LibraryState };
+
 export type Source = { kind: "folder"; name: string } | { kind: "browser" };
 
 interface LibraryState {
@@ -22,7 +24,15 @@ interface LibraryState {
   useBrowser(): Promise<void>;
 }
 
-const Ctx = createContext<LibraryState | undefined>(undefined);
+/**
+ * Exported so a library can be supplied directly.
+ *
+ * The provider below opens a real store — a folder on disk or the browser's —
+ * which is right for the app and impossible for a harness or a test, where the
+ * point is to render one view against a library you built in memory.
+ */
+export const LibraryContext = createContext<LibraryState | undefined>(undefined);
+const Ctx = LibraryContext;
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [library, setLibrary] = useState<Library>();

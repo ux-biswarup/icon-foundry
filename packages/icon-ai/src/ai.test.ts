@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { lucideInspired, parseIconLanguage, technical } from "@icon-foundry/icon-language";
+import { lucideInspired, parseIconLanguage, technical, type IconLanguage } from "@icon-foundry/icon-language";
+import { resolveSpec } from "@icon-foundry/icon-composer";
+import type { IconSpec } from "@icon-foundry/icon-spec";
 import { validateIconSpec } from "@icon-foundry/icon-validator";
 import { createKeywordIntentParser, createLlmIntentParser, intentToSpec, parseIntentKeywords } from "./index.js";
 
@@ -29,14 +31,18 @@ describe("parseIntentKeywords", () => {
   });
 });
 
+/** Where the language puts this icon's parts. Geometry is not stored, so a
+ * test that wants boxes asks the language for them, like a renderer does. */
+const placed = (spec: IconSpec, language: IconLanguage) => resolveSpec(spec, language).elements;
+
 describe("intentToSpec", () => {
   it("fits a single subject into the keyline box of its optical shape", () => {
     const wide = intentToSpec({ subject: "warehouse", modifiers: [], text: "warehouse" }, lucideInspired);
-    expect(wide.elements[0]).toMatchObject({ primitive: "warehouse", x: 2, y: 4, width: 20, height: 16 });
+    expect(placed(wide, lucideInspired)[0]).toMatchObject({ primitive: "warehouse", x: 2, y: 4, width: 20, height: 16 });
     const tall = intentToSpec({ subject: "document", modifiers: [], text: "document" }, lucideInspired);
-    expect(tall.elements[0]).toMatchObject({ x: 4, y: 2, width: 16, height: 20 });
+    expect(placed(tall, lucideInspired)[0]).toMatchObject({ x: 4, y: 2, width: 16, height: 20 });
     const round = intentToSpec({ subject: "clock", modifiers: [], text: "clock" }, lucideInspired);
-    expect(round.elements[0]).toMatchObject({ x: 2, y: 2, width: 20, height: 20 });
+    expect(placed(round, lucideInspired)[0]).toMatchObject({ x: 2, y: 2, width: 20, height: 20 });
     expect(validateIconSpec(wide, lucideInspired).issues).toEqual([]);
   });
 
@@ -80,17 +86,17 @@ describe("createLlmIntentParser", () => {
 describe("recipes follow the language grammar", () => {
   it("places the badge in the corner the grammar names, and moves the subject away from it", () => {
     const topRight = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "cold warehouse" }, technical);
-    const badge = topRight.elements[1]!;
+    const badge = placed(topRight, technical)[1]!;
     expect(badge.y).toBe(technical.safeArea);
     expect(badge.x).toBeGreaterThan(technical.canvas / 2);
-    expect(topRight.elements[0]!.align).toMatchObject({ x: "start", y: "end" });
+    expect(placed(topRight, technical)[0]!.align).toMatchObject({ x: "start", y: "end" });
 
     const flipped = parseIconLanguage({ ...technical, sizes: undefined, grammar: { ...technical.grammar, badge: { ratio: 0.35, corner: "bottom-left" } } });
     const bottomLeft = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "cold warehouse" }, flipped);
-    const badge2 = bottomLeft.elements[1]!;
+    const badge2 = placed(bottomLeft, flipped)[1]!;
     expect(badge2.x).toBe(flipped.safeArea);
     expect(badge2.y).toBeGreaterThan(flipped.canvas / 2);
-    expect(bottomLeft.elements[0]!.align).toMatchObject({ x: "end", y: "start" });
+    expect(placed(bottomLeft, flipped)[0]!.align).toMatchObject({ x: "end", y: "start" });
     expect(validateIconSpec(bottomLeft, flipped).issues).toEqual([]);
   });
 
@@ -98,11 +104,11 @@ describe("recipes follow the language grammar", () => {
     const small = parseIconLanguage({ ...technical, sizes: undefined, grammar: { ...technical.grammar, badge: { ratio: 0.2, corner: "top-right" } } });
     const spec = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "x" }, small);
     const wide = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "x" }, technical);
-    expect(spec.elements[1]!.width!).toBeLessThan(wide.elements[1]!.width!);
+    expect(placed(spec, small)[1]!.width!).toBeLessThan(placed(wide, technical)[1]!.width!);
   });
 
   it("keeps every generated icon inside the language's construction and gap rules", () => {
-    for (const canvas of [16, 24]) {
+    for (const canvas of [16, 24, 32]) {
       for (const modifiers of [[], ["snowflake"], ["snowflake", "thermometer"]]) {
         const spec = intentToSpec({ subject: "warehouse", modifiers, text: "warehouse" }, technical, { canvas });
         expect(validateIconSpec(spec, technical).issues).toEqual([]);

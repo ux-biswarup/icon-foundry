@@ -40,7 +40,7 @@ SVG · sprite · React · TypeScript · CSS · manifest · Figma
 
 **An Icon Language, in three layers.** *Character*: the purpose, personality, principles, and the metaphors your set refuses. *Grammar*: how icons are constructed, such as 45° line angles, closed shapes, where a badge sits, and how much gap two parts must keep. *Tokens*: optical sizes with their own stroke, safe area and detail budget, keyline boxes so a wide icon and a round one read as the same size, corner radius, allowed styles and colours. The character is not documentation; it is the prompt any drafting agent receives, and the grammar is what the validator enforces.
 
-Two languages ship. **Technical** is the default: a 16px primary size at a 1.25 stroke with a 24px companion, construction on 45° increments, closed shapes, and gaps wide enough to survive at small sizes. **Lucide-inspired** is a second worked example. Copy either and make it yours.
+Two languages ship. **Technical** is the default: a 16px primary size at a 1.25 stroke, with 24px and 32px companions at 1.5 and 2.5, construction on 45° increments, closed shapes, and gaps wide enough to survive at small sizes. Every one of those weights is a starting point you edit in the studio, not a rule. **Lucide-inspired** is a second worked example. Copy either and make it yours.
 
 **A growing vocabulary.** Composable building blocks such as warehouse, package, vehicle, document, person, snowflake, thermometer, clock, warning, arrow, and basic shapes. Each adapts to the active language, so a warehouse drawn today and one drawn next year share the same stroke and proportions. When a subject is missing, a freeform path or a user-defined element drawn once becomes part of the vocabulary, and every later use is consistent.
 
@@ -245,7 +245,7 @@ packages/
   icon-export/         Six output formats, ZIP, and the Figma payload
   icon-agent/          Create agent: tools over the core, planner, pluggable providers
 languages/
-  technical/           The default language: character, grammar and two optical sizes
+  technical/           The default language: character, grammar and three optical sizes
   lucide-inspired/     A second worked example, plus a JSON schema for authoring your own
 examples/              IconSpec examples, including an intentionally invalid one
 docs/                  Specification and architecture decisions

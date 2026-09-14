@@ -261,6 +261,85 @@ describe("Library: icons and elements", () => {
   });
 });
 
+describe("Library: the filled style", () => {
+  it("carries a filled version as a variant of the icon, not as a second icon", async () => {
+    const { lib } = await fresh();
+    await lib.save(spec(), { status: "published" });
+    expect(lib.filledSpec("cold-warehouse")).toBeUndefined();
+
+    const withFill = await lib.setFilled("cold-warehouse");
+    expect(withFill.variants?.filled?.status).toBe("derived");
+    expect(lib.icons()).toHaveLength(1);
+    // Derived means nothing was drawn: the filled spec is the same drawing,
+    // asked for in the other style.
+    expect(lib.filledSpec("cold-warehouse")).toEqual({ ...withFill.spec, style: "filled" });
+
+    const reopened = await Library.open(new MemoryStore(files(lib)));
+    expect(reopened.icons()[0]?.variants?.filled?.status).toBe("derived");
+  });
+
+  it("takes an authored filled drawing as a draft, and keeps it apart from the outline", async () => {
+    const { lib } = await fresh();
+    await lib.save(spec(), { status: "published" });
+    const drawn = spec({ style: "filled", elements: [{ primitive: "warehouse", x: 1, y: 4, width: 14, height: 10 }] });
+    const record = await lib.setFilled("cold-warehouse", { spec: drawn });
+    expect(record.variants?.filled?.status).toBe("draft");
+    expect(lib.filledSpec("cold-warehouse")).toEqual(record.variants?.filled?.spec);
+    // The outline is untouched by any of this.
+    expect(record.spec.elements).toHaveLength(2);
+
+    await expect(lib.setFilled("cold-warehouse", { spec: spec({ name: "other" }) })).rejects.toThrow(/cannot be named/);
+  });
+
+  it("lets a filled version be taken away, because having none is normal", async () => {
+    const { lib } = await fresh();
+    await lib.save(spec(), { status: "published" });
+    await lib.setFilled("cold-warehouse", { status: "published" });
+    const bare = await lib.clearFilled("cold-warehouse");
+    expect(bare.variants).toBeUndefined();
+    expect((await Library.open(new MemoryStore(files(lib)))).icons()[0]?.variants).toBeUndefined();
+  });
+
+  it("refuses a filled version in a language that does not allow the style", async () => {
+    const outlineOnly = parseIconLanguage({
+      ...serializeIconLanguage(technical),
+      id: "outline-only",
+      style: { default: "outline", allowed: ["outline"] },
+    });
+    const lib = await Library.create(new MemoryStore(), { id: "a", name: "A" }, outlineOnly);
+    await lib.save(spec({ language: "outline-only" }), { status: "published" });
+    await expect(lib.setFilled("cold-warehouse")).rejects.toThrow(/does not allow the filled style/);
+  });
+
+  it("reports coverage against the language's policy, and nothing when there is none", async () => {
+    const { lib } = await fresh();
+    await lib.save(spec(), { status: "published", tags: ["navigation"] });
+    await lib.save(
+      { name: "add-file", language: "technical", canvas: 16, elements: [{ primitive: "document", x: 3, y: 1, width: 10, height: 14 }] } as never,
+      { status: "published", tags: ["editing"] },
+    );
+
+    // No policy: nothing is required, which is the honest answer for most sets.
+    expect(lib.filledCoverage().required).toEqual([]);
+
+    await lib.saveLanguage(
+      parseIconLanguage({
+        ...serializeIconLanguage(technical),
+        style: { default: "outline", allowed: ["outline", "filled"], filled: { requiredFor: ["navigation"] } },
+      }),
+    );
+    const before = lib.filledCoverage();
+    expect(before.policy).toEqual(["navigation"]);
+    expect(before.required.map((r) => r.spec.name)).toEqual(["cold-warehouse"]);
+    expect(before.missing.map((r) => r.spec.name)).toEqual(["cold-warehouse"]);
+
+    await lib.setFilled("cold-warehouse");
+    const after = lib.filledCoverage();
+    expect(after.missing).toEqual([]);
+    expect(after.covered.map((r) => r.spec.name)).toEqual(["cold-warehouse"]);
+  });
+});
+
 describe("Library: concepts", () => {
   const cold = {
     id: "cold-storage",
@@ -359,5 +438,52 @@ describe("Library: concepts", () => {
     const snap = await lib.snapshot();
     expect(Object.keys(snap)).toContain("concepts/cold-storage.json");
     expect((await Library.open(new MemoryStore(snap))).concepts()).toHaveLength(1);
+  });
+});
+
+describe("Library: the slashed variant", () => {
+  it("derives it from the canonical drawing, not from stored geometry", async () => {
+    const { lib } = await fresh();
+    await lib.save(spec(), { status: "published" });
+    expect(lib.variantSpec("cold-warehouse", "off")).toBeUndefined();
+
+    const record = await lib.setVariant("cold-warehouse", "off");
+    expect(record.variants?.off?.status).toBe("derived");
+    // Nothing is written down: the slash is computed from the icon and the
+    // language every time, so both can change under it.
+    expect(record.variants?.off?.spec).toBeUndefined();
+
+    const off = lib.variantSpec("cold-warehouse", "off")!;
+    expect(off.name).toBe("cold-warehouse-off");
+    expect(off.elements?.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the two variants apart", async () => {
+    const { lib } = await fresh();
+    await lib.save(spec(), { status: "published" });
+    await lib.setVariant("cold-warehouse", "filled");
+    await lib.setVariant("cold-warehouse", "off");
+    const both = lib.get("cold-warehouse")!;
+    expect(Object.keys(both.variants ?? {}).sort()).toEqual(["filled", "off"]);
+
+    await lib.clearVariant("cold-warehouse", "filled");
+    expect(Object.keys(lib.get("cold-warehouse")?.variants ?? {})).toEqual(["off"]);
+    // And the record survives a reload with only the variant that was kept.
+    const reopened = await Library.open(new MemoryStore(files(lib)));
+    expect(Object.keys(reopened.icons()[0]?.variants ?? {})).toEqual(["off"]);
+  });
+
+  it("does not need the filled style to be allowed", async () => {
+    // A slash is not a fill: a language that forbids solid shapes can still
+    // negate one of its icons.
+    const outlineOnly = parseIconLanguage({
+      ...serializeIconLanguage(technical),
+      id: "outline-only",
+      style: { default: "outline", allowed: ["outline"] },
+    });
+    const lib = await Library.create(new MemoryStore(), { id: "a", name: "A" }, outlineOnly);
+    await lib.save(spec({ language: "outline-only" }), { status: "published" });
+    await expect(lib.setVariant("cold-warehouse", "filled")).rejects.toThrow(/does not allow/);
+    await expect(lib.setVariant("cold-warehouse", "off")).resolves.toBeTruthy();
   });
 });

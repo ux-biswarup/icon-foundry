@@ -98,7 +98,26 @@ export interface IconSpec {
   stroke?: StrokeOverride;
   /** Free-form metadata: tags, description, source intent. Never rendered. */
   meta?: Record<string, unknown>;
-  elements: IconElement[];
+  /**
+   * What the icon is made of and how its parts relate.
+   *
+   * This is what an icon *is*. Where the parts sit is not stored, because the
+   * language already says: the keyline boxes give every part its size, the
+   * grammar says what a badge or a stack looks like here, and the tokens say
+   * how much fits. Deriving it on every render is what makes a change to the
+   * sheet reach an icon drawn months ago — and what will make the next keyline
+   * property reach it too, without anyone migrating anything.
+   */
+  composition?: ConceptComposition;
+  /**
+   * Explicit geometry, for an icon that is not derived at all.
+   *
+   * Optional on purpose. A spec carries `composition` or `elements`, and the
+   * common case is `composition`. Anything reading this field directly is
+   * reading geometry that may not be there yet: resolve the spec against its
+   * language first. See `resolveSpec` in the composer.
+   */
+  elements?: IconElement[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -129,6 +148,29 @@ export interface ConceptPart {
   /** How many of it. Defaults to 1. */
   count?: number;
   priority: PartPriority;
+  /** Drawn against the language on purpose. See {@link PartException}. */
+  except?: PartException;
+}
+
+/**
+ * A part positioned by hand instead of by the language.
+ *
+ * This is the only way an icon's geometry can disagree with its keyline sheet,
+ * and it is deliberately not free. `why` is required, because an exception
+ * without a reason is indistinguishable from drift — and drift is the thing
+ * this whole arrangement exists to make impossible to create by accident.
+ *
+ * The same contract the construction traits already use: an exception is
+ * allowed, it is never silent, it shows beside the rule it breaks, and the
+ * audit counts it.
+ */
+export interface PartException {
+  /** The box this part is pinned to, in canvas units. */
+  box: { x: number; y: number; width: number; height: number };
+  /** What you saw that the language's box got wrong. */
+  why: string;
+  /** Alignment inside the pinned box, when it differs from the derived one. */
+  align?: { x?: Alignment; y?: Alignment };
 }
 
 /**

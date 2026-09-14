@@ -28,6 +28,8 @@ export {
   DEFAULT_CHARACTER,
   DEFAULT_GRAMMAR,
   DEFAULT_CONSTRUCTION,
+  DEFAULT_CORNERS,
+  cornerRadiusFor,
   DEFAULT_OPTICS,
   OPTICAL_SHAPES,
   defaultOpticalBoxes,
@@ -35,6 +37,7 @@ export {
   parseCharacter,
   parseGrammar,
   parseDerivation,
+  parseFilledPolicy,
   parsePreferences,
   serializeIconLanguage,
   constructionFor,
@@ -46,8 +49,8 @@ export {
 
 /**
  * The default starter language: icons as technical drawings with a friendly
- * finish. 16px primary with a 24px optical size, 45° construction, closed
- * shapes, and gaps wide enough to survive at small sizes.
+ * finish. 16px primary with 24px and 32px optical sizes, 45° construction,
+ * closed shapes, and gaps wide enough to survive at small sizes.
  */
 export const technical: IconLanguage = parseIconLanguage(technicalJson);
 

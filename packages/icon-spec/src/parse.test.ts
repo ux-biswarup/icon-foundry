@@ -16,7 +16,7 @@ describe("parseIconSpec", () => {
   it("accepts a well-formed spec and normalises size to width/height", () => {
     const spec = parseIconSpec(valid);
     expect(spec.name).toBe("temperature-warehouse");
-    expect(spec.elements[1]).toMatchObject({ width: 7, height: 7 });
+    expect(spec.elements![1]).toMatchObject({ width: 7, height: 7 });
   });
 
   it("rejects non kebab-case names", () => {
@@ -43,8 +43,8 @@ describe("parseIconSpec", () => {
       ...valid,
       elements: [{ path: "M0 0 L10 0 L10 10 Z", x: 2, y: 2, size: 20, natural: { width: 10, height: 10 } }],
     });
-    expect(spec.elements[0]).toMatchObject({ path: "M0 0 L10 0 L10 10 Z", natural: { width: 10, height: 10 } });
-    expect(parseIconSpec({ ...valid, elements: [{ path: ["M0 0 L1 1", "M1 0 L0 1"], x: 2, y: 2, size: 20 }] }).elements[0])
+    expect(spec.elements![0]).toMatchObject({ path: "M0 0 L10 0 L10 10 Z", natural: { width: 10, height: 10 } });
+    expect(parseIconSpec({ ...valid, elements: [{ path: ["M0 0 L1 1", "M1 0 L0 1"], x: 2, y: 2, size: 20 }] }).elements![0])
       .toHaveProperty("path", ["M0 0 L1 1", "M1 0 L0 1"]);
     expect(() => parseIconSpec({ ...valid, elements: [{ path: "", x: 2, y: 2, size: 20 }] })).toThrow(/path data/);
     expect(() =>
@@ -81,7 +81,7 @@ describe("parseIconSpec", () => {
         },
       ],
     });
-    expect(spec.elements[0]).toHaveProperty("children");
+    expect(spec.elements![0]).toHaveProperty("children");
 
     expect(() =>
       parseIconSpec({

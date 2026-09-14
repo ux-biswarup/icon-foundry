@@ -116,7 +116,7 @@ describe("compose", () => {
   it("uses the tokens of the spec's optical size", () => {
     const icon = compose(spec([{ primitive: "circle", x: 1, y: 1, size: 14 }], { canvas: 16 }), lucideInspired);
     expect(icon.tokens.canvas).toBe(16);
-    expect(icon.shapes[0]?.stroke.width).toBe(1.5);
+    expect(icon.shapes[0]?.stroke.width).toBe(1.25);
     // Unknown canvas falls back to the nearest size so the validator can still show geometry.
     expect(compose(spec([{ primitive: "circle", x: 1, y: 1, size: 14 }], { canvas: 18 }), lucideInspired).tokens.canvas).toBe(16);
   });

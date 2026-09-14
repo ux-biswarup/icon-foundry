@@ -10,6 +10,7 @@ import type {
   DetailLevel,
   DetailLimits,
   DiagonalDirection,
+  FilledPolicy,
   IconCharacter,
   IconGrammar,
   IconLanguage,
@@ -18,6 +19,7 @@ import type {
   ApertureStyle,
   Construction,
   ConstructionException,
+  CornerBand,
   OpticalBoxes,
   OpticalShape,
   OpticsTokens,
@@ -73,6 +75,22 @@ export const DEFAULT_GRAMMAR: IconGrammar = {
  * offset nobody asked for would redraw every icon already published the moment
  * they upgraded.
  */
+/**
+ * The shipped radius ramp: a right angle rounds like this language's rectangles
+ * do, a gentle bend twice as hard, a sharp point half as hard.
+ *
+ * Stated as multiples rather than as Lucide's 2 / 1 / 0.5, which are lengths
+ * that are only right on a 24-unit canvas with a 2px stroke. Three imported
+ * constants would be three more thresholds with nothing behind them, in a
+ * project whose own plan names that as its largest gap. A multiple of a number
+ * the team already chose is a default that cannot be wrong in the same way.
+ */
+export const DEFAULT_CORNERS: CornerBand[] = [
+  { upTo: 60, radius: 0.5 },
+  { upTo: 120, radius: 1 },
+  { radius: 2 },
+];
+
 export const DEFAULT_CONSTRUCTION: Construction = {
   interiorRadius: 0,
   grade: 0,
@@ -80,8 +98,57 @@ export const DEFAULT_CONSTRUCTION: Construction = {
   inset: 1,
   accentSize: 1,
   slope: "mixed",
+  corners: DEFAULT_CORNERS,
+  cornerSnap: false,
   exceptions: {},
 };
+
+/**
+ * The radius for a corner of this angle, in canvas units.
+ *
+ * Bands are read sharpest first and the first one that fits wins, so a ramp
+ * reads the way it is written. An angle outside every band takes the last one,
+ * which is what "and everything above that" means.
+ */
+export function cornerRadiusFor(angle: number, corners: readonly CornerBand[], cornerRadius: number): number {
+  const bands = corners.length > 0 ? corners : DEFAULT_CORNERS;
+  for (const band of bands) {
+    if (band.upTo === undefined || angle <= band.upTo) return band.radius * cornerRadius;
+  }
+  return (bands[bands.length - 1]?.radius ?? 0) * cornerRadius;
+}
+
+/**
+ * The ramp as written in a file: sharpest first, one open band at the end.
+ *
+ * Both rules are enforced rather than sorted into place. A ramp whose bands
+ * overlap has two answers for one corner, and quietly picking one of them is
+ * how a language stops meaning what it says.
+ */
+function parseCorners(value: unknown, path: string, fallback: CornerBand[]): CornerBand[] {
+  if (value === undefined) return fallback.map((band) => ({ ...band }));
+  if (!Array.isArray(value)) fail(path, "expected an array of bands, sharpest first");
+  if (value.length === 0) fail(path, "expected at least one band");
+
+  const out: CornerBand[] = [];
+  let previous = 0;
+  value.forEach((raw, i) => {
+    const at = `${path}[${i}]`;
+    if (!isRecord(raw)) fail(at, "expected an object");
+    const last = i === value.length - 1;
+    const radius = num(raw.radius, `${at}.radius`, { min: 0 });
+    if (raw.upTo === undefined) {
+      if (!last) fail(`${at}.upTo`, "only the last band may be open-ended");
+      out.push({ radius });
+      return;
+    }
+    const upTo = num(raw.upTo, `${at}.upTo`, { exclusiveMin: 0, max: 180 });
+    if (upTo <= previous) fail(`${at}.upTo`, `bands run sharpest first; ${upTo}° is not above ${previous}°`);
+    previous = upTo;
+    out.push({ upTo, radius });
+  });
+  return out;
+}
 
 const APERTURES: readonly ApertureStyle[] = ["mixed", "line", "outline", "notch"];
 const SLOPES: readonly SlopeStyle[] = ["mixed", "shallow", "iso", "45"];
@@ -136,14 +203,32 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], path: st
 }
 
 /**
- * Default keyline boxes for a canvas, following the Material/SF convention:
- * a circle fills the content area, a square is inset so it reads the same
- * size, and rectangles trade height for width.
+ * Default keyline boxes for a canvas.
+ *
+ * The four shapes exist so that icons of different proportions read as the
+ * same size. A circle has to be drawn larger than a square to look equally
+ * big — its corners are missing, so it presents less ink at the same nominal
+ * width — and a wide shape has to give back height to avoid looking oversized.
+ * The circle therefore fills the content area, the square sits inside it, and
+ * the rectangles trade one dimension for the other.
  *
  *   content c = canvas − 2·safeArea
- *   square   (c−2)×(c−2)   circle c×c   horizontal c×(c−4)   vertical (c−4)×c
+ *   square (c−inset)²   circle c²   horizontal c×(c−trim)   vertical (c−trim)×c
+ *
+ * Inset and trim scale with the content area rather than being fixed at 2 and
+ * 4. Fixed offsets are only correct at one canvas: at 24 they produced the
+ * 19/21/21×17 sheet exactly, and at 16 the same constants over-corrected,
+ * giving a 12 square where the set was drawn with 13. A ratio holds at both.
+ *
+ * Both offsets snap to *twice* `grid`, because these are element boxes and
+ * `grid` is the language's own step for element boxes. Twice, because the box
+ * is centred: a box inset by `d` starts at `safeArea + d/2`, so only an even
+ * number of grid steps leaves the origin on the grid. Snapping to a single
+ * step instead puts a 13-wide box at x 1.5 on a 16 canvas, which a language
+ * with a 1-unit grid then reports as an off-grid element — the layout rule
+ * catching the defaults in a lie.
  */
-export function defaultOpticalBoxes(canvas: number, safeArea: number): OpticalBoxes {
+export function defaultOpticalBoxes(canvas: number, safeArea: number, grid = 0.5): OpticalBoxes {
   const c = canvas - 2 * safeArea;
   const centred = (w: number, h: number): Box => ({
     x: (canvas - w) / 2,
@@ -151,8 +236,13 @@ export function defaultOpticalBoxes(canvas: number, safeArea: number): OpticalBo
     width: w,
     height: h,
   });
-  const inset = Math.min(2, c / 4);
-  const trim = Math.min(4, c / 2);
+  const step = 2 * (grid > 0 ? grid : 0.5);
+  const snap = (v: number): number => Math.round(v / step) * step;
+  // Capped so a very small canvas cannot trim a box away to nothing. A grid too
+  // coarse to express the offset snaps it to zero, which is correct: the shape
+  // loses its optical compensation rather than sitting off the language's grid.
+  const inset = Math.min(snap(c / 12), c / 4);
+  const trim = Math.min(snap(c / 5), c / 2);
   return {
     square: centred(c - inset, c - inset),
     circle: centred(c, c),
@@ -175,8 +265,8 @@ function parseBox(value: unknown, path: string, canvas: number): Box {
   return box;
 }
 
-function parseOptical(value: unknown, path: string, canvas: number, safeArea: number): OpticalBoxes {
-  const defaults = defaultOpticalBoxes(canvas, safeArea);
+function parseOptical(value: unknown, path: string, canvas: number, safeArea: number, grid: number): OpticalBoxes {
+  const defaults = defaultOpticalBoxes(canvas, safeArea, grid);
   if (value === undefined) return defaults;
   if (!isRecord(value)) fail(path, "expected an object");
   const out: OpticalBoxes = { ...defaults };
@@ -352,6 +442,8 @@ function parseConstruction(value: unknown, path: string, derived: DerivedTokens)
     inset: pickNumber(derived, "inset", DEFAULT_CONSTRUCTION.inset),
     accentSize: pickNumber(derived, "accentSize", DEFAULT_CONSTRUCTION.accentSize),
     slope: pickEnum(derived, "slope", DEFAULT_CONSTRUCTION.slope),
+    corners: DEFAULT_CONSTRUCTION.corners.map((band) => ({ ...band })),
+    cornerSnap: DEFAULT_CONSTRUCTION.cornerSnap,
     exceptions: {},
   };
   if (value === undefined) return base;
@@ -367,6 +459,8 @@ function parseConstruction(value: unknown, path: string, derived: DerivedTokens)
     accentSize:
       value.accentSize === undefined ? base.accentSize : num(value.accentSize, `${path}.accentSize`, { min: 0.3, max: 2.5 }),
     slope: value.slope === undefined ? base.slope : oneOf(value.slope, SLOPES, `${path}.slope`),
+    corners: parseCorners(value.corners, `${path}.corners`, base.corners),
+    cornerSnap: value.cornerSnap === undefined ? base.cornerSnap : Boolean(value.cornerSnap),
     exceptions: parseExceptions(value.exceptions, `${path}.exceptions`),
   };
 }
@@ -442,11 +536,13 @@ function parseSize(value: Record<string, unknown>, path: string, base: SizeToken
     cap: pickEnum(here, "strokeCap", base.stroke.cap),
     join: pickEnum(here, "strokeJoin", base.stroke.join),
   };
+  const grid = value.grid === undefined ? base.grid : num(value.grid, `${path}.grid`, { exclusiveMin: 0 });
+  const strokeHere = value.stroke === undefined ? strokeBase : parseStroke(value.stroke, `${path}.stroke`, strokeBase);
   return {
     canvas,
-    grid: value.grid === undefined ? base.grid : num(value.grid, `${path}.grid`, { exclusiveMin: 0 }),
+    grid,
     safeArea,
-    stroke: value.stroke === undefined ? strokeBase : parseStroke(value.stroke, `${path}.stroke`, strokeBase),
+    stroke: strokeHere,
     cornerRadius:
       value.cornerRadius === undefined
         ? pickNumber(here, "cornerRadius", base.cornerRadius)
@@ -459,9 +555,39 @@ function parseSize(value: Record<string, unknown>, path: string, base: SizeToken
       value.minNegativeSpace === undefined
         ? base.minNegativeSpace
         : num(value.minNegativeSpace, `${path}.minNegativeSpace`, { min: 0 }),
-    optical: parseOptical(value.optical, `${path}.optical`, canvas, safeArea),
+    // Absent means "one stroke width at this size", which is the width at which
+    // a knock-out stops reading. Inheriting the primary's number instead would
+    // hand a 32px canvas a 16px hole and call it legible.
+    minCutout:
+      value.minCutout === undefined
+        ? strokeHere.width
+        : num(value.minCutout, `${path}.minCutout`, { min: 0 }),
+    optical: parseOptical(value.optical, `${path}.optical`, canvas, safeArea, grid),
     optics: parseOptics(value.optics, `${path}.optics`, scaleOptics(base.optics, base.canvas, canvas)),
   };
+}
+
+/**
+ * The filled policy: which concepts this product needs a filled version of.
+ *
+ * Absent is a real answer — most sets need filled versions of a handful of
+ * icons and of nothing else — so an empty list is the default rather than an
+ * error. Nothing here refuses an icon; coverage against this list is reported
+ * and a person decides.
+ */
+export function parseFilledPolicy(value: unknown, path: string): FilledPolicy {
+  if (value === undefined) return { requiredFor: [] };
+  if (!isRecord(value)) fail(path, "expected an object");
+  const raw = value.requiredFor;
+  if (raw === undefined) return { requiredFor: [] };
+  if (!Array.isArray(raw)) fail(`${path}.requiredFor`, "expected an array of concept tags");
+  const seen = new Set<string>();
+  for (const [i, tag] of raw.entries()) {
+    const tagged = str(tag, `${path}.requiredFor[${i}]`).trim();
+    if (tagged === "") fail(`${path}.requiredFor[${i}]`, "expected a concept tag");
+    seen.add(tagged);
+  }
+  return { requiredFor: [...seen] };
 }
 
 /**
@@ -481,6 +607,10 @@ export function parseIconLanguage(value: unknown): IconLanguage {
       ? [defaultStyle]
       : (input.style.allowed as unknown[]).map((s, i) => oneOf(s, STYLES, `language.style.allowed[${i}]`));
   if (!allowedStyles.includes(defaultStyle)) fail("language.style.allowed", "must include the default style");
+  const filledPolicy = parseFilledPolicy(input.style.filled, "language.style.filled");
+  if (filledPolicy.requiredFor.length > 0 && !allowedStyles.includes("filled")) {
+    fail("language.style.filled", "requires filled versions of some icons, but the filled style is not allowed");
+  }
 
   const detail = input.detail === undefined ? "low" : oneOf(input.detail, DETAIL, "language.detail");
 
@@ -504,16 +634,18 @@ export function parseIconLanguage(value: unknown): IconLanguage {
   const derived = deriveTokens(character, derivation, canvas);
   const grammar = parseGrammar(input.grammar, "language.grammar", pickNumber(derived, "badgeRatio", DEFAULT_GRAMMAR.badge.ratio));
 
+  const grid = num(input.grid, "language.grid", { exclusiveMin: 0 });
+  const primaryStroke = parseStroke(
+    input.stroke,
+    "language.stroke",
+    { width: 1, cap: pickEnum(derived, "strokeCap", "round"), join: pickEnum(derived, "strokeJoin", "round") },
+    true,
+  );
   const defaultSize: SizeTokens = {
     canvas,
-    grid: num(input.grid, "language.grid", { exclusiveMin: 0 }),
+    grid,
     safeArea,
-    stroke: parseStroke(
-      input.stroke,
-      "language.stroke",
-      { width: 1, cap: pickEnum(derived, "strokeCap", "round"), join: pickEnum(derived, "strokeJoin", "round") },
-      true,
-    ),
+    stroke: primaryStroke,
     cornerRadius:
       input.cornerRadius === undefined
         ? pickNumber(derived, "cornerRadius", 0)
@@ -524,7 +656,11 @@ export function parseIconLanguage(value: unknown): IconLanguage {
     }),
     minNegativeSpace:
       input.minNegativeSpace === undefined ? 0 : num(input.minNegativeSpace, "language.minNegativeSpace", { min: 0 }),
-    optical: parseOptical(input.optical, "language.optical", canvas, safeArea),
+    minCutout:
+      input.minCutout === undefined
+        ? primaryStroke.width
+        : num(input.minCutout, "language.minCutout", { min: 0 }),
+    optical: parseOptical(input.optical, "language.optical", canvas, safeArea, grid),
     optics: parseOptics(input.optics, "language.optics", DEFAULT_OPTICS),
   };
 
@@ -546,7 +682,7 @@ export function parseIconLanguage(value: unknown): IconLanguage {
     name: str(input.name, "language.name"),
     version: str(input.version, "language.version"),
     ...(input.description !== undefined && { description: str(input.description, "language.description") }),
-    style: { default: defaultStyle, allowed: allowedStyles },
+    style: { default: defaultStyle, allowed: allowedStyles, filled: filledPolicy },
     colors: { allowed: allowedColors },
     detail,
     character,
@@ -598,8 +734,8 @@ function sameBox(a: Box, b: Box): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
-function isDerivedOptical(optical: OpticalBoxes, canvas: number, safeArea: number): boolean {
-  const derived = defaultOpticalBoxes(canvas, safeArea);
+function isDerivedOptical(optical: OpticalBoxes, canvas: number, safeArea: number, grid: number): boolean {
+  const derived = defaultOpticalBoxes(canvas, safeArea, grid);
   return OPTICAL_SHAPES.every((shape) => sameBox(optical[shape], derived[shape]));
 }
 
@@ -612,11 +748,12 @@ function sizeInput(tokens: SizeTokens, derived: DerivedTokens, base: SizeTokens)
     stroke: strokeInput(tokens.stroke, here),
     minNegativeSpace: tokens.minNegativeSpace,
   };
+  if (tokens.minCutout !== tokens.stroke.width) out.minCutout = tokens.minCutout;
   // A token equal to what the axes propose is left out: absent means derived.
   if (tokens.cornerRadius !== pickNumber(here, "cornerRadius", NaN)) out.cornerRadius = tokens.cornerRadius;
   const limits = limitsInput(tokens.limits, here);
   if (limits) out.limits = limits;
-  if (!isDerivedOptical(tokens.optical, tokens.canvas, tokens.safeArea)) out.optical = tokens.optical;
+  if (!isDerivedOptical(tokens.optical, tokens.canvas, tokens.safeArea, tokens.grid)) out.optical = tokens.optical;
   const optics = opticsInput(tokens.optics, scaleOptics(base.optics, base.canvas, tokens.canvas));
   if (optics) out.optics = optics;
   return out;
@@ -664,11 +801,20 @@ export function serializeIconLanguage(language: IconLanguage): IconLanguageInput
     grid: defaultTokens.grid,
     safeArea: defaultTokens.safeArea,
     stroke: strokeInput(defaultTokens.stroke, derived),
-    style: { default: language.style.default, allowed: [...language.style.allowed] },
+    style: {
+      default: language.style.default,
+      allowed: [...language.style.allowed],
+      // An empty policy is the absence of one, and writing `{ requiredFor: [] }`
+      // into every language file would suggest a decision nobody made.
+      ...(language.style.filled.requiredFor.length > 0 && {
+        filled: { requiredFor: [...language.style.filled.requiredFor] },
+      }),
+    },
     colors: { allowed: [...language.colors.allowed] },
     detail: language.detail,
     minNegativeSpace: defaultTokens.minNegativeSpace,
   };
+  if (defaultTokens.minCutout !== defaultTokens.stroke.width) out.minCutout = defaultTokens.minCutout;
 
   // Omit anything a reader would derive identically, so an authored file shows
   // only real decisions and a diff shows only real changes.
@@ -677,7 +823,7 @@ export function serializeIconLanguage(language: IconLanguage): IconLanguageInput
   }
   const limits = limitsInput(defaultTokens.limits, derived);
   if (limits) out.limits = limits;
-  if (!isDerivedOptical(defaultTokens.optical, defaultTokens.canvas, defaultTokens.safeArea)) {
+  if (!isDerivedOptical(defaultTokens.optical, defaultTokens.canvas, defaultTokens.safeArea, defaultTokens.grid)) {
     out.optical = defaultTokens.optical;
   }
   const defaultOptics = opticsInput(defaultTokens.optics, DEFAULT_OPTICS);
@@ -695,6 +841,14 @@ export function serializeIconLanguage(language: IconLanguage): IconLanguageInput
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (construction as Record<string, unknown>)[trait] = language.construction[trait];
     }
+  }
+  // The ramp is written down only when it is not the shipped one, so a file
+  // shows the decisions its author actually made.
+  if (JSON.stringify(language.construction.corners) !== JSON.stringify(DEFAULT_CORNERS)) {
+    construction.corners = language.construction.corners.map((band) => ({ ...band }));
+  }
+  if (language.construction.cornerSnap !== DEFAULT_CONSTRUCTION.cornerSnap) {
+    construction.cornerSnap = language.construction.cornerSnap;
   }
   if (Object.keys(construction).length > 0) out.construction = construction;
   if (JSON.stringify(language.character) !== JSON.stringify(DEFAULT_CHARACTER)) out.character = language.character;

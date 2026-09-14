@@ -26,6 +26,8 @@ stays here as the record of the reasoning, marked with where it was wrong.
 | --- | --- | --- |
 | [proposals/construction.md](proposals/construction.md) | A team should own how its parts are *constructed*, because that is where "the work of one hand" actually lives. | Accepted, built as M12–M18 |
 | [proposals/language-page-concept.html](proposals/language-page-concept.html) | A working concept of the merged Language page. Open it in a browser; no build step. | Built, and the page follows it closely |
+| [proposals/construction-editor.md](proposals/construction-editor.md) | The set's construction method — straight segments, then rounded joins — becomes a language rule, an editor, and three tools taken from Lucide Studio and moved from the repair end of the pipe to the construction end. | Accepted, being built as M22–M26 |
+| [proposals/filled-style.md](proposals/filled-style.md) | Icons come in two styles, the filled one is the outline's own closed loops, and which icons need it is a product's decision rather than a measurement. | Accepted, being built as M19–M21 |
 | [proposals/language-panel-concept.html](proposals/language-panel-concept.html) | v2, the right column only: a properties panel rather than a document. Scope and provenance as glyphs, the writing behind a Learn toggle, labels you drag to sweep a value. | For review |
 
 ## Which one to change

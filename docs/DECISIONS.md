@@ -39,8 +39,9 @@ supported by scaling along the other axis.
 ### Safe area is measured on centrelines
 
 Validation compares geometry bounds, not stroke outlines, against
-`safeArea`. With the starter language (2px stroke, 2-unit safe area) this
-matches the Lucide convention: centrelines live in 2…22, stroke edges in 1…23.
+`safeArea`. With a 2px stroke and a 2-unit safe area — the Lucide convention
+the starter languages began from — centrelines live in 2…22 and stroke edges in
+1…23. A lighter stroke keeps the centrelines and pulls the edges in.
 Filled shapes have no stroke, so their outer edge is their bound.
 
 ### Filled style = silhouette
@@ -572,3 +573,33 @@ failure mode of every assistant that has to appear useful.
 property system that does not exist has nothing to talk about and has to invent
 its own vocabulary, which is how a project ends up with two models of one thing.
 
+### The filled style is the outline's own closed loops
+
+A filled icon is not a second drawing. It is the same `IconSpec` read a
+different way: closed geometry becomes solid, declared cutouts become holes, and
+the renderer emits one path with an even-odd fill rule because a hole only
+exists relative to the shape it is cut from. An authored filled spec exists only
+where the derived one fails, which keeps the common case free.
+
+The alternative — a `warehouse-filled` record of its own — doubles every concept
+and breaks the one-published-icon-per-concept invariant the library enforces. So
+a style is a variant of an icon, not an icon.
+
+### Which icons need a filled version is left to a person
+
+The system answers a different question from the one that gets asked. "Does this
+icon need to be filled" is a fact about a product's tab bars and selected
+states, and no property of a drawing produces it. "Can this icon be filled" is
+geometry: is anything closed, does a knock-out survive `minCutout` at 16, is
+there interior detail with no hole to become.
+
+So the engine measures the second, reports it in those terms, and never decides
+the first. The policy — which concept tags require a filled version — is written
+in the language by a person, versions with it, and travels when the language is
+copied. An agent may draft the geometry where the derived fill fails; publishing
+it stays an approval, like every other draft in this system.
+
+This is the fourth entry in the Language page's "Left to a person" list, and the
+reason it is there rather than in the rules is the one stated at the top of that
+list: implying an enforcement that does not exist is worse than admitting there
+is none.

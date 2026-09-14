@@ -1,3 +1,4 @@
+import { resolveSpec, type ResolvedSpec } from "@icon-foundry/icon-composer";
 import type { IconLanguage } from "@icon-foundry/icon-language";
 import type { IconRecord, Library } from "@icon-foundry/icon-library";
 import { renderSpecToSvg } from "@icon-foundry/icon-renderer";
@@ -41,7 +42,9 @@ export interface AuditOptions {
 
 interface Subject {
   record: IconRecord;
-  spec: IconSpec;
+  /** Resolved against the language, so geometry checks measure what is drawn
+   * today rather than what was stored the day the icon was made. */
+  spec: ResolvedSpec;
   validation: ValidationResult;
   svg: string | undefined;
 }
@@ -61,7 +64,7 @@ export function auditLibrary(library: Library, options: AuditOptions = {}): Audi
       const composable = !validation.issues.some((i) => i.rule === "compose");
       return {
         record,
-        spec: record.spec,
+        spec: resolveSpec(record.spec, language, { registry }),
         validation,
         svg: composable ? renderSpecToSvg(record.spec, language, { registry }) : undefined,
       };
@@ -77,6 +80,8 @@ export function auditLibrary(library: Library, options: AuditOptions = {}): Audi
     ...duplicateGeometry(subjects),
     ...conflictingConcepts(subjects, languageId),
     ...ungovernedIcons(subjects),
+    ...ungovernedGeometry(subjects),
+    ...pinnedParts(subjects),
     ...inconsistentBadges(subjects),
     ...exceptions,
     ...scoreOutliers(subjects),
@@ -192,6 +197,62 @@ function conflictingConcepts(subjects: Subject[], languageId: string): AuditFind
 
 /** A published icon with no concept cannot be found by meaning, cannot be
  * checked for duplication, and cannot be answered by the registry. */
+/**
+ * Icons the keyline sheet does not reach.
+ *
+ * An icon that carries its own geometry is not governed by the language at
+ * all: move a keyline box and it will not follow, and nothing else in the app
+ * will mention it. That is precisely the state this finding exists to stop
+ * being invisible — it is the difference between a sheet that is the rule and
+ * a sheet that is a picture of one.
+ *
+ * It is a warning rather than an error because it is sometimes right. What it
+ * must never be is unnoticed.
+ */
+function ungovernedGeometry(subjects: Subject[]): AuditFinding[] {
+  const loose = subjects.filter((s) => !s.record.spec.composition).map((s) => s.record.spec.name);
+  if (loose.length === 0) return [];
+  return [
+    {
+      id: "ungoverned-geometry",
+      label: "Outside the keyline sheet",
+      severity: "warning",
+      message:
+        `${loose.length} ${loose.length === 1 ? "icon carries" : "icons carry"} geometry of ${loose.length === 1 ? "its" : "their"} own, ` +
+        `so changing a keyline box will not move ${loose.length === 1 ? "it" : "them"}: ${loose.join(", ")}.`,
+      icons: loose,
+    },
+  ];
+}
+
+/**
+ * Parts drawn against the language on purpose.
+ *
+ * Not a problem — an exception is allowed. But it is counted and named, the
+ * same way a construction exception is, because a set where half the parts are
+ * exceptions has a language that is describing something nobody follows.
+ */
+function pinnedParts(subjects: Subject[]): AuditFinding[] {
+  const pinned: string[] = [];
+  const reasons: string[] = [];
+  for (const s of subjects) {
+    const parts = s.record.spec.composition?.parts.filter((part) => part.except) ?? [];
+    if (parts.length === 0) continue;
+    pinned.push(s.record.spec.name);
+    for (const part of parts) reasons.push(`${s.record.spec.name}/${part.element}: ${part.except!.why}`);
+  }
+  if (pinned.length === 0) return [];
+  return [
+    {
+      id: "pinned-parts",
+      label: "Drawn against the language",
+      severity: "info",
+      message: `${reasons.length} ${reasons.length === 1 ? "part is" : "parts are"} pinned by hand — ${reasons.join("; ")}.`,
+      icons: pinned,
+    },
+  ];
+}
+
 function ungovernedIcons(subjects: Subject[]): AuditFinding[] {
   const orphans = subjects.filter((s) => s.record.status === "published" && !s.record.concept).map((s) => s.record.spec.name);
   if (orphans.length === 0) return [];

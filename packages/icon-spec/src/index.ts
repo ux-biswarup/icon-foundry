@@ -6,7 +6,9 @@ export {
   parseIconElement,
   parseStrokeOverride,
   elementBox,
+  specElementNames,
   parseConceptComposition,
   parseConceptPart,
+  parsePartException,
   partCount,
 } from "./parse.js";

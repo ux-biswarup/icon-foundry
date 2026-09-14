@@ -26,6 +26,7 @@ import {
   type PrimitiveRegistry,
   type Shape,
 } from "@icon-foundry/icon-primitives";
+import { resolveSpec } from "./layout.js";
 import {
   elementBox,
   type Alignment,
@@ -214,6 +215,7 @@ function composeElement(
     strokeWidth: stroke.width,
     cornerRadius: tokens.cornerRadius,
     scale: s,
+    grid: tokens.grid,
     // Each part sees the language, then its own exception if it has one. The
     // substitution happens here so no primitive has to know exceptions exist.
     construction: constructionFor(construction, primitive.name),
@@ -239,6 +241,10 @@ function composeElement(
  */
 export function compose(spec: IconSpec, language: IconLanguage, options: ComposeOptions = {}): ComposedIcon {
   const registry = options.registry ?? defaultRegistry;
+  // Geometry first, and against *this* language. A spec that derives from a
+  // composition has no boxes of its own until this line runs, which is what
+  // makes a keyline edit reach it. See resolveSpec.
+  const resolved = resolveSpec(spec, language, { registry });
   const style = spec.style ?? language.style.default;
   // A spec on an unknown canvas still composes (with the nearest size's
   // tokens) so the validator can show it alongside the canvas error.
@@ -251,7 +257,7 @@ export function compose(spec: IconSpec, language: IconLanguage, options: Compose
 
   const shapes: ComposedShape[] = [];
   let elementCount = 0;
-  spec.elements.forEach((el, i) => {
+  resolved.elements.forEach((el, i) => {
     elementCount += composeElement(el, `elements[${i}]`, inherited, tokens, language.construction, registry, shapes, spec.canvas);
   });
 
@@ -285,3 +291,17 @@ export {
   type OpticalPass,
   type OpticallyCorrected,
 } from "./optics.js";
+
+export {
+  ConceptError,
+  composeConcept,
+  deriveElements,
+  resolveSpec,
+  pruneParts,
+  type ResolvedSpec,
+  type ComposeConceptOptions,
+  type DerivedLayout,
+  type PrunedComposition,
+} from "./layout.js";
+
+export * from "./offify.js";

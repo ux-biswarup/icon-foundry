@@ -1,12 +1,10 @@
 import { auditLibrary, proposeRules } from "@icon-foundry/icon-audit";
 import { exportArchive, exportLibrary, figmaPayload } from "@icon-foundry/icon-export";
-import { STATUS_TRANSITIONS, type IconRecord, type IconStatus } from "@icon-foundry/icon-library";
-import { parseIconSpec } from "@icon-foundry/icon-spec";
-import { useMemo, useState } from "react";
-import { IconSvg, PreviewStrip } from "../components/IconSvg.js";
-import { StatusPill } from "../components/Status.js";
-import { ScoreSummary } from "../components/Scores.js";
-import { ValidationList } from "../components/ValidationList.js";
+import { VARIANT_KINDS, type IconRecord, type IconStatus, type VariantKind } from "@icon-foundry/icon-library";
+import { useMemo, useState, type CSSProperties } from "react";
+import { IconSvg } from "../components/IconSvg.js";
+import { IconDrawer } from "../components/IconDrawer.js";
+import { Swatch } from "../components/Swatch.js";
 import { downloadBytes, downloadText, renderSpec } from "../lib/render.js";
 import { navigate } from "../lib/router.js";
 import { useLibrary } from "../store/LibraryContext.js";
@@ -17,6 +15,12 @@ export function LibraryPage({ selected }: { selected?: string | undefined }) {
   const { library, version } = useLibrary();
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"icons" | "gaps" | "audit">("icons");
+  /**
+   * Which style the grid is showing. Not a filter: an icon with no filled
+   * version stays in the grid, dimmed, because a set that quietly loses a third
+   * of its cells teaches you nothing about your coverage.
+   */
+  const [style, setStyle] = useState<"outline" | VariantKind>("outline");
   const [statuses, setStatuses] = useState<IconStatus[]>(["draft", "review", "published"]);
 
   const hits = useMemo(() => {
@@ -64,6 +68,18 @@ export function LibraryPage({ selected }: { selected?: string | undefined }) {
             audit
           </label>
         </div>
+        {view === "icons" && (
+          <div className="filters">
+            {(["outline", ...VARIANT_KINDS] as const)
+              .filter((s) => s !== "filled" || library.language.style.allowed.includes("filled"))
+              .map((s) => (
+              <label key={s} className={style === s ? "on" : ""}>
+                <input type="radio" checked={style === s} onChange={() => setStyle(s)} />
+                {s}
+              </label>
+            ))}
+          </div>
+        )}
         <ExportButton />
         <FigmaButton />
         <button className="primary" onClick={() => navigate("create")}>
@@ -75,19 +91,28 @@ export function LibraryPage({ selected }: { selected?: string | undefined }) {
       {view === "audit" && <Audit />}
 
       {view === "icons" && (
-      <div className={`split ${current ? "with-detail" : ""}`}>
-        <div className="grid">
+        <>
+      <div className={`split ${current ? "with-drawer" : ""}`}>
+        {/* The track follows the largest icon in the set, so a 16px icon and a
+            24px one sit in cells of the same size and can be compared. */}
+        <div
+          className="tile-grid"
+          style={{ "--tile-size": `${Math.max(24, ...hits.map((h) => h.record.spec.canvas))}px` } as CSSProperties}
+        >
           {hits.length === 0 && (
             <p className="muted empty">
               {library.icons().length === 0 ? "No icons yet. Create the first one." : "Nothing matches."}
             </p>
           )}
           {hits.map(({ record }) => (
-            <IconCard key={record.spec.name} record={record} active={record.spec.name === selected} />
+            <IconCard key={record.spec.name} record={record} style={style} active={record.spec.name === selected} />
           ))}
         </div>
-        {current && <IconDetail record={current} key={current.spec.name + current.updatedAt} />}
       </div>
+      {/* The set stays on screen above it: an icon judged alone is an icon
+          judged against nothing. */}
+      {current && <IconDrawer record={current} key={current.spec.name} />}
+        </>
       )}
     </div>
   );
@@ -308,148 +333,94 @@ function Gaps() {
           </ul>
         </>
       )}
+      <FilledCoverage />
     </div>
   );
 }
 
-function IconCard({ record, active }: { record: IconRecord; active: boolean }) {
+/**
+ * What the set is missing in the filled style.
+ *
+ * The same question as the concept gaps above, one level down, so it lives in
+ * the same place. It reports against the language's policy and stops there: the
+ * system never decides that an icon needs a filled version, because that is a
+ * fact about a product's tab bars and not a property of a drawing.
+ */
+function FilledCoverage() {
+  const { library, version } = useLibrary();
+  const coverage = useMemo(() => library?.filledCoverage(), [library, version]);
+  if (!library || !coverage) return null;
+  if (!library.language.style.allowed.includes("filled")) return null;
+
+  return (
+    <div className="filled-coverage">
+      <h3>Filled versions</h3>
+      {coverage.policy.length === 0 ? (
+        <p className="muted small-text">
+          {library.language.name} asks for no filled versions. {coverage.covered.length > 0
+            ? `${coverage.covered.length} ${coverage.covered.length === 1 ? "icon has" : "icons have"} one anyway, which is fine.`
+            : "Name the concepts that need one under Styles in the language, and they will be listed here."}
+        </p>
+      ) : coverage.missing.length === 0 ? (
+        <p className="muted small-text">
+          Every published icon tagged {coverage.policy.join(", ")} has a filled version.
+        </p>
+      ) : (
+        <>
+          <p className="muted small-text">
+            {coverage.missing.length} of {coverage.required.length} icons tagged {coverage.policy.join(", ")} have no
+            filled version.
+          </p>
+          <ul className="gap-list">
+            {coverage.missing.map((record) => (
+              <li key={record.spec.name}>
+                <div>
+                  <strong>{record.spec.name}</strong>
+                  {record.concept && <span className="muted"> — {record.concept}</span>}
+                </div>
+                <button onClick={() => navigate(`library/${encodeURIComponent(record.spec.name)}`)}>Open</button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One icon in the set, drawn the same way a part is drawn on the language
+ * canvas: true size, on the ground the app is in, with the name on hover.
+ *
+ * The two grids are the same kind of looking — is this a set? — so they are
+ * the same grid. See the tile rules in styles.css.
+ */
+function IconCard({ record, style, active }: { record: IconRecord; style: "outline" | VariantKind; active: boolean }) {
   const { library } = useLibrary();
   if (!library) return null;
-  const { svg } = renderSpec(record.spec, library);
+  // Showing a variant: an icon that does not have it keeps its cell and its
+  // canonical drawing, marked. Hiding it would answer "how much of this set is
+  // filled" by making the question impossible to ask.
+  const variant = style === "outline" ? undefined : library.variantSpec(record.spec.name, style);
+  const absent = style !== "outline" && !variant;
+  const spec = variant ?? record.spec;
   return (
     <button
-      className={`card ${active ? "active" : ""} status-${record.status}`}
+      className={`tile ${active ? "sel" : ""} ${record.status === "deprecated" ? "muted-status" : ""} ${absent ? "dim" : ""}`}
+      title={absent ? `${record.spec.name} — no ${style} version` : record.spec.name}
       onClick={() => navigate(`library/${encodeURIComponent(record.spec.name)}`)}
     >
-      <div className="card-preview">
-        <IconSvg svg={svg} size={record.spec.canvas} />
-      </div>
-      <div className="card-name">{record.spec.name}</div>
+      {record.status === "draft" && <span className="tile-mark draft" title="draft — not published" />}
+      {style !== "outline" && record.variants?.[style]?.status === "draft" && (
+        <span className="tile-mark draft" title={`${style} version is a draft`} />
+      )}
+      {absent && <span className="tile-mark absent" title={`no ${style} version`} />}
+      <Swatch
+        tone="surface"
+        render={(onDark) => <IconSvg svg={renderSpec(spec, library, onDark).svg} size={record.spec.canvas} />}
+      />
+      <span className="tile-name">{record.spec.name}</span>
     </button>
   );
 }
 
-function IconDetail({ record }: { record: IconRecord }) {
-  const { library, mutate } = useLibrary();
-  const [specText, setSpecText] = useState(() => JSON.stringify(record.spec, null, 2));
-  const [tags, setTags] = useState(record.tags.join(", "));
-  const [concepts, setConcepts] = useState(record.concepts.join(", "));
-  const [error, setError] = useState<string>();
-  const [showSpec, setShowSpec] = useState(false);
-  if (!library) return null;
-
-  const { svg, validation } = renderSpec(record.spec, library);
-  const next = STATUS_TRANSITIONS[record.status];
-  const list = (s: string) => s.split(",").map((t) => t.trim()).filter(Boolean);
-
-  const act = (fn: Parameters<typeof mutate>[0]) =>
-    mutate(fn).then(() => setError(undefined)).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-
-  return (
-    <aside className="detail">
-      <header>
-        <h2>{record.spec.name}</h2>
-        <StatusPill status={record.status} />
-        <button className="ghost close" onClick={() => navigate("library")} aria-label="Close">
-          ✕
-        </button>
-      </header>
-
-      <PreviewStrip svg={svg} canvas={record.spec.canvas} />
-      <ValidationList result={validation} />
-      <ScoreSummary overall={validation.overall} scores={validation.scores} />
-
-      <div className="actions">
-        {next.map((s) => (
-          <button key={s} className={s === "published" ? "primary" : ""} onClick={() => act((lib) => lib.setStatus(record.spec.name, s))}>
-            {s === "published" ? "Publish" : s === "review" ? "Send to review" : s === "deprecated" ? "Deprecate" : "Back to draft"}
-          </button>
-        ))}
-        {(record.status === "draft" || record.status === "deprecated") && (
-          <button
-            className="danger"
-            onClick={() => {
-              if (confirm(`Delete "${record.spec.name}"? This cannot be undone.`)) {
-                void act((lib) => lib.remove(record.spec.name)).then(() => navigate("library"));
-              }
-            }}
-          >
-            Delete
-          </button>
-        )}
-        <button onClick={() => svg && downloadText(`${record.spec.name}.svg`, svg, "image/svg+xml")} disabled={!svg}>
-          Download SVG
-        </button>
-      </div>
-
-      <label>
-        Tags
-        <input value={tags} onChange={(e) => setTags(e.target.value)} onBlur={() => act((lib) => lib.save(record.spec, { tags: list(tags) }))} />
-      </label>
-      <label>
-        Concepts it answers
-        <input
-          value={concepts}
-          onChange={(e) => setConcepts(e.target.value)}
-          onBlur={() => act((lib) => lib.save(record.spec, { concepts: list(concepts) }))}
-          placeholder="e.g. cold chain, refrigerated"
-        />
-      </label>
-
-      <dl className="meta">
-        {record.concept && (
-          <>
-            <dt>Concept</dt>
-            <dd>{library.getConcept(record.concept)?.name ?? record.concept}</dd>
-          </>
-        )}
-        <dt>Language</dt>
-        <dd>
-          {library.language.name} v{library.language.version} · {record.spec.canvas}px · {record.spec.style ?? library.language.style.default}
-        </dd>
-        {record.source?.brief && (
-          <>
-            <dt>Brief</dt>
-            <dd>{record.source.brief}</dd>
-          </>
-        )}
-        {record.source?.model && (
-          <>
-            <dt>Drafted by</dt>
-            <dd>{record.source.model}</dd>
-          </>
-        )}
-        {record.replacedBy && (
-          <>
-            <dt>Replaced by</dt>
-            <dd>{record.replacedBy}</dd>
-          </>
-        )}
-        <dt>Updated</dt>
-        <dd>{new Date(record.updatedAt).toLocaleString()}</dd>
-      </dl>
-
-      <details open={showSpec} onToggle={(e) => setShowSpec((e.target as HTMLDetailsElement).open)}>
-        <summary>Definition</summary>
-        <textarea value={specText} onChange={(e) => setSpecText(e.target.value)} spellCheck={false} rows={14} />
-        <div className="actions">
-          <button
-            onClick={() =>
-              act(async (lib) => {
-                const spec = parseIconSpec(JSON.parse(specText));
-                if (spec.name !== record.spec.name) throw new Error("Renaming is not supported here; create a new icon instead.");
-                await lib.save(spec);
-              })
-            }
-          >
-            Save definition
-          </button>
-          <button className="ghost" onClick={() => downloadText(`${record.spec.name}.json`, JSON.stringify(record, null, 2), "application/json")}>
-            Export JSON
-          </button>
-        </div>
-      </details>
-      {error && <p className="error-text">{error}</p>}
-    </aside>
-  );
-}

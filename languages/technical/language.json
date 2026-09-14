@@ -2,8 +2,8 @@
   "$schema": "../language.schema.json",
   "id": "technical",
   "name": "Technical",
-  "version": "0.1.0",
-  "description": "Icons as technical drawings with a friendly finish. Two optical sizes like a typeface, a light stroke that does not chase the pixel grid, construction on 45° increments, closed shapes, and gaps wide enough to survive 16px.",
+  "version": "0.2.0",
+  "description": "Icons as technical drawings with a friendly finish. Three optical sizes like a typeface, a light stroke that does not chase the pixel grid, construction on 45° increments, closed shapes, and gaps wide enough to survive 16px.",
 
   "character": {
     "purpose": "Icons for a tool someone uses all day. They should be read, not noticed.",
@@ -53,6 +53,14 @@
       "stroke": { "width": 1.5 },
       "minNegativeSpace": 2,
       "limits": { "maxElements": 4, "maxShapes": 16 }
+    },
+    {
+      "canvas": 32,
+      "grid": 0.5,
+      "safeArea": 2,
+      "stroke": { "width": 2.5 },
+      "minNegativeSpace": 2.5,
+      "limits": { "maxElements": 5, "maxShapes": 20 }
     }
   ]
 }

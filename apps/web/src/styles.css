@@ -12,6 +12,11 @@
   --warn: #a86a00;
   --err: #c0392b;
   --radius: 8px;
+  /* The keyline palette: terracotta for the box, pink for the space around it.
+     Two decisions, two colours, so a selection says which one you are in. */
+  --keyline-stroke: #e97451;
+  --keyline-fill: rgba(233, 116, 81, 0.16);
+  --keyline-pad: #e0398f;
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", system-ui, sans-serif;
 }
 
@@ -36,6 +41,9 @@
   --ok: #5fbf85;
   --warn: #e0a233;
   --err: #ef6b5f;
+  --keyline-stroke: #f08a63;
+  --keyline-fill: rgba(240, 138, 99, 0.18);
+  --keyline-pad: #ff74b8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -52,6 +60,9 @@
   --ok: #5fbf85;
   --warn: #e0a233;
   --err: #ef6b5f;
+  --keyline-stroke: #f08a63;
+  --keyline-fill: rgba(240, 138, 99, 0.18);
+  --keyline-pad: #ff74b8;
   }
 }
 
@@ -108,15 +119,7 @@ label input, label select { color: var(--fg); font-size: 14px; }
 .filters input { display: none; }
 .split { display: grid; grid-template-columns: 1fr; gap: 20px; }
 .split.with-detail { grid-template-columns: 1fr 380px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; align-content: start; }
 .empty { grid-column: 1 / -1; }
-.card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border: 1px solid transparent; background: transparent; }
-.card:hover { background: var(--bg-2); }
-.card.active { border-color: var(--fg); }
-.card.status-draft .card-preview { outline: 1px dashed var(--line); }
-.card.status-deprecated { opacity: 0.45; }
-.card-preview { width: 48px; height: 48px; display: grid; place-items: center; }
-.card-name { font-size: 11px; color: var(--fg-2); overflow-wrap: anywhere; hyphens: manual; text-align: center; line-height: 1.3; }
 
 .detail { border-left: 1px solid var(--line); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 80px); overflow: auto; }
 .detail header { display: flex; align-items: center; gap: 8px; }
@@ -142,6 +145,9 @@ details textarea { margin-top: 8px; }
 .swatch.light .icon-svg { color: #111; }
 .swatch.dark .icon-svg { color: #fff; }
 .swatch.small { flex: 1; }
+/* A browsing cell rather than a proving ground. See components/Swatch.tsx. */
+.swatch.surface { background: var(--bg-2); border-color: transparent; }
+.swatch.surface .icon-svg { color: var(--fg); }
 
 ul.checks { list-style: none; margin: 0; padding: 0; font-size: 12px; display: grid; gap: 2px; }
 ul.checks li.ok { color: var(--ok); }
@@ -217,7 +223,10 @@ ul.checks.compact { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .editor-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 12px; }
 .head-actions { display: flex; gap: 8px; }
 .editor-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: 28px; align-items: start; }
-.controls { display: grid; gap: 4px; min-width: 0; }
+/* align-content: start, because the column has a fixed height and a grid
+   distributes leftover space into auto rows by default. With the rail split
+   into tabs that is visible as a tab strip stretched to 200px. */
+.controls { display: grid; gap: 4px; min-width: 0; align-content: start; }
 .controls section { padding: 4px 0 18px; border-bottom: 1px solid var(--line); }
 .controls section:last-child { border-bottom: 0; }
 .preview-pane { position: sticky; top: 64px; max-height: calc(100vh - 140px); overflow: auto; }
@@ -399,9 +408,7 @@ button.small { font-size: 11px; padding: 3px 8px; }
 }
 .theme-seg button.on { background: var(--accent); color: var(--accent-fg); }
 
-/* A part and its inverse, side by side. See components/Duo.tsx for why. */
-.duo { display: flex; gap: 3px; }
-.duo > .swatch { flex: 1; min-width: 0; padding: 8px; }
+/* A preview follows the theme control above it. See components/Swatch.tsx. */
 
 /* ---------------------------------------------------------------- */
 /* The Language page: three columns, sorted by what moves the drawing */
@@ -452,32 +459,151 @@ button.small { font-size: 11px; padding: 3px 8px; }
 }
 .canvas-head .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
 
-/* A cell holds two swatches side by side, so the track has to follow the icon
- * size: two icons, their padding, the gap between them, and the cell's own. */
-.part-grid {
+/*
+ * An icon grid is cells, not captions.
+ *
+ * A hundred icons with a name under each read as a list you scan a line at a
+ * time. The same hundred as plain squares read as a set, which is the thing
+ * being judged: whether these drawings look like they come from one hand. So
+ * the name moves to hover and the cell keeps nothing but the drawing.
+ *
+ * The cell is square at every size. An icon's own box is 1:1 — 16 means 16 by
+ * 16 — and a cell that is not square puts a different amount of air above a
+ * drawing than beside it, which is exactly the judgement a designer is trying
+ * to make here. The track follows the drawn size so the air is constant: the
+ * same 16px margin around a 16px drawing and a 96px one.
+ *
+ * One system, two grids. The parts canvas and the library are both "a set of
+ * drawings, judged together", and a library that looked different from the
+ * canvas would be saying they are different kinds of looking. They are not.
+ */
+.tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(calc(var(--part-size, 32px) * 2 + 44px), 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(auto-fill, minmax(max(44px, calc(var(--tile-size, 32px) + 32px)), 1fr));
+  gap: 6px;
+  align-content: start;
 }
-.part {
-  border: 1px solid transparent; border-radius: var(--radius); padding: 7px 4px 5px;
+.tile {
+  display: block; position: relative; padding: 0; border: 0;
   background: none; color: inherit; cursor: pointer; text-align: center;
-  display: block; position: relative; transition: opacity .12s;
+  transition: opacity .12s;
 }
-.part.static { cursor: default; }
-.part:hover { border-color: var(--line); }
-.part.sel { border-color: var(--accent); background: var(--bg-2); }
-.part.dim { opacity: .16; pointer-events: none; }
-.part .duo { justify-content: center; }
-.part-name { display: block; font-size: 11px; color: var(--fg-2); margin-top: 5px; word-break: break-word; }
-.part-draft {
-  position: absolute; top: 3px; left: 6px; font-size: 9px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .04em; color: var(--warn);
+.tile.static { cursor: default; }
+.tile.dim { opacity: .16; pointer-events: none; }
+.tile.muted-status { opacity: .45; }
+.tile > .swatch {
+  width: 100%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 10px;
+  transition: background .12s, box-shadow .12s;
 }
-.part-flag {
-  position: absolute; top: 5px; right: 6px; width: 7px; height: 7px;
-  border-radius: 50%; background: var(--warn);
+.tile:hover > .swatch { background: var(--bg-3); }
+/* Inset, so selecting a cell cannot nudge the grid by a pixel. */
+.tile.sel > .swatch, .tile:focus-visible > .swatch { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.tile:focus-visible { outline: none; }
+
+/*
+ * The name, on hover only, and absolutely positioned so it never takes part in
+ * the grid: a label that reserves space is a label that is always there.
+ */
+.tile-name {
+  position: absolute; left: 50%; top: calc(100% + 5px); transform: translateX(-50%);
+  z-index: 4; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: var(--fg); color: var(--bg); border-radius: 5px;
+  font-size: 11px; line-height: 1.7; padding: 0 7px;
+  opacity: 0; pointer-events: none; transition: opacity .1s;
 }
+.tile:hover .tile-name, .tile:focus-visible .tile-name { opacity: 1; }
+
+/* Corner marks, because a clean cell can still carry a status: a hollow ring
+ * for a draft, a filled dot for a part drawn against the language. Both name
+ * themselves on hover, like everything else in this grid. */
+.tile-mark { position: absolute; top: 5px; width: 7px; height: 7px; border-radius: 50%; }
+.tile-mark.draft { left: 5px; border: 1.5px solid var(--fg-2); }
+.tile-mark.flag { right: 5px; background: var(--warn); }
+/* No filled version. A hollow ring rather than a warning colour: the absence is
+   information, not a fault — most icons in most sets never need one. */
+.tile-mark.absent { right: 5px; border: 1.5px dashed var(--fg-2); opacity: .7; }
+
+.filled-coverage { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); max-width: 760px; }
+.filled-coverage h3 { font-size: 13px; margin: 0 0 6px; }
+
+/* Asking for both styles at creation, and what came back. A refusal is stated
+   in the same weight as a warning: neither is a failure, and an icon with no
+   filled version is a normal icon. */
+.style-picks { display: flex; align-items: center; gap: 6px; }
+.style-picks label {
+  flex-direction: row; align-items: center; gap: 4px; padding: 4px 9px;
+  border: 1px solid var(--line); border-radius: 999px; cursor: pointer; font-size: 12px;
+}
+.style-picks label.on { background: var(--bg-2); color: var(--fg); }
+.style-picks input { display: none; }
+
+.filled-note { font-size: 12px; margin: 6px 0 0; padding: 7px 10px; border-radius: 6px; background: var(--bg-2); }
+.filled-note ul { margin: 4px 0 0; padding-left: 16px; display: grid; gap: 3px; }
+.filled-note.ok { color: var(--fg-2); }
+.filled-note.warn { border-left: 3px solid var(--warn); }
+.filled-note.no { border-left: 3px solid var(--fg-2); }
+
+.filled-row { margin: 4px 0 10px; }
+.filled-reasons { list-style: none; margin: 5px 0 0; padding: 0; display: grid; gap: 4px; font-size: 11px; }
+.filled-reasons li { padding: 4px 8px; border-left: 2px solid var(--line); color: var(--fg-2); }
+.filled-reasons li.impossible { border-left-color: var(--warn); }
+
+/* ------------------------------------------------------------------ */
+/* Method: how a part is built                                          */
+/* ------------------------------------------------------------------ */
+
+.method-canvas { display: flex; flex-direction: column; }
+.method-stage { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.method-svg {
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2);
+  max-width: 100%; height: auto; touch-action: none;
+}
+
+/* The grid the part is drawn on, quiet enough to read the drawing over. */
+.ms-grid path { stroke: var(--line); fill: none; }
+
+/* A segment, and the one thing this tab exists to make visible: a segment whose
+   angle is not one the language allows. */
+.ms-seg { fill: none; stroke: var(--fg); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.ms-seg.arc { stroke: var(--accent, var(--fg)); }
+.ms-seg.off { stroke: var(--warn); stroke-dasharray: 2 2; }
+
+.ms-vertex { fill: var(--bg); stroke: var(--fg); stroke-width: 1.2px; vector-effect: non-scaling-stroke; cursor: grab; }
+.ms-vertex:hover { fill: var(--accent, var(--fg)); }
+.ms-vertex.on { fill: var(--accent, var(--fg)); cursor: grabbing; }
+.ms-vertex.locked { cursor: default; opacity: .55; }
+
+/* Nothing between the pointer and a vertex. A label sits directly above the
+   joint it describes and would otherwise swallow the drag that starts there. */
+.ms-label { fill: var(--fg-2); text-anchor: middle; font-variant-numeric: tabular-nums; pointer-events: none; }
+.ms-grid { pointer-events: none; }
+.ms-seg { pointer-events: none; }
+
+.locked-note {
+  font-size: 12px; color: var(--fg-2); background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 7px 9px; margin: 0;
+}
+.locked-note strong { color: var(--fg); }
+
+.method-side { display: grid; gap: 8px; max-width: 240px; }
+.method-facts { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; margin: 0; font-size: 12px; }
+.method-facts dt { color: var(--fg-2); }
+.method-facts dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+
+/* The radius ramp, drawn rather than typed: five real corners at the language's
+   own stroke. The one rule nobody can otherwise see. */
+.corner-ramp { display: grid; gap: 10px; }
+.ramp-samples { display: flex; gap: 6px; flex-wrap: wrap; }
+.ramp-sample { margin: 0; display: grid; justify-items: center; gap: 2px; }
+.ramp-sample svg { border: 1px solid var(--line); border-radius: 6px; background: var(--bg-2); }
+.ramp-sample path { stroke: var(--fg); }
+.ramp-sample figcaption { font-size: 10px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+
+.ramp-bands { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.ramp-bands li { display: flex; align-items: center; gap: 6px; }
+.ramp-bands .field-label { flex: 0 0 78px; }
+.ramp-bands input { width: 58px; font-size: 12px; padding: 2px 5px; }
+.ramp-snap { flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-2); }
 
 .part-detail { border: 1px solid var(--line); border-radius: var(--radius); padding: 13px; margin-top: 16px; }
 .part-detail-head { display: flex; align-items: center; justify-content: space-between; }
@@ -538,4 +664,202 @@ button.link {
 .hand-changes li { margin-bottom: 3px; }
 
 /* Optical size and magnification are different questions, so the bar says so. */
-.canvas-bar .bar-sep { width: 1px; height: 16px; background: var(--line); margin: 0 3px; }
+.canvas-bar .bar-sep, .pc-toolbar .bar-sep { width: 1px; height: 16px; background: var(--line); margin: 0 3px; }
+
+/* The parts' own controls, under the view switch and part of the parts: size
+   and magnification say nothing about the keyline sheet, which draws every
+   size at once and pans on its own toolbar. Matches .kl-toolbar so the two
+   views read as the same kind of thing. */
+.pc-toolbar { display: flex; align-items: center; gap: 7px; padding-bottom: 10px; flex-wrap: wrap; row-gap: 6px; }
+.pc-toolbar .chip { padding: 2px 9px; white-space: nowrap; }
+
+/* ------------------------------------------------------------------ */
+/* Primitives: the keyline sheet and its controls                       */
+/* ------------------------------------------------------------------ */
+
+/* Tabs, so each group of controls says what it contributes rather than
+   stacking five unlabelled concerns down one rail. */
+.rail-tabs { display: flex; gap: 2px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.rail-tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 9px;
+  font-size: 12px; color: var(--fg-2); cursor: pointer; margin-bottom: -1px; }
+.rail-tab:hover { color: var(--fg); }
+.rail-tab.on { color: var(--fg); border-bottom-color: var(--accent, var(--fg)); font-weight: 600; }
+/* A rail with one tab is a heading, not a choice. Don't offer a pointer. */
+.rail-tab:only-child { cursor: default; }
+
+/* ---------------------------------------------------------------- */
+/* The keyline canvas: a pan-and-zoom surface, not a page of cards.   */
+/* ---------------------------------------------------------------- */
+
+.keyline-canvas { display: flex; flex-direction: column; height: calc(100vh - 190px); min-height: 340px; }
+.kl-toolbar { display: flex; align-items: center; gap: 6px; padding-bottom: 8px; flex: none; }
+.kl-toolbar .chip { padding: 2px 9px; }
+.kl-zoom { font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums; min-width: 42px; text-align: center; }
+
+/* The surface itself. `touch-action: none` so a trackpad pan reaches the
+   wheel handler instead of scrolling an ancestor out from under it. */
+.kl-viewport {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--bg-2); cursor: grab; touch-action: none;
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.kl-viewport:active { cursor: grabbing; }
+
+.kl-figure { position: absolute; overflow: visible; }
+.kl-row-head { position: absolute; font-size: 11px; white-space: nowrap; pointer-events: none; }
+.kl-label {
+  position: absolute; transform: translateX(-50%); font-size: 11px;
+  text-transform: capitalize; white-space: nowrap; pointer-events: none;
+}
+
+/* The grid is the paper the boxes sit on, not another mark competing with
+   them, so it is drawn back further here than in the icon preview. */
+.kl-figure .ip-grid { opacity: .5; }
+
+/* The drawing. A figure sits on paper, so the square is filled rather than
+   left to show the canvas texture through it. */
+.kl-canvas { fill: var(--bg); stroke: var(--fg); }
+.kl-diagonal { stroke: var(--fg); opacity: 0.4; }
+.kl-box { fill: var(--keyline-fill); stroke: var(--keyline-stroke); cursor: pointer; }
+.kl-box.is-selected { fill: rgba(233, 116, 81, 0.3); stroke: var(--keyline-stroke); }
+.kl-authored-dot { fill: var(--accent, currentColor); }
+
+/* The padding: hatched, because it is what is left over and should look it.
+   Selecting it colours the hatch — it does not fill the region in, which would
+   turn the leftover space into a shape. */
+.kl-gutter { cursor: pointer; }
+.kl-hatch-line { stroke: var(--fg-2); opacity: 0.55; }
+.kl-hatch-line.is-selected { stroke: var(--keyline-pad); opacity: 1; }
+.kl-hatch-wash { fill: var(--keyline-pad); opacity: 0.1; }
+
+.kl-dim { pointer-events: none; }
+.kl-dim-ext, .kl-dim-run { stroke: var(--fg-2); opacity: 0.7; }
+.kl-dim-text { fill: var(--fg-2); font-variant-numeric: tabular-nums; }
+/* A measurement takes the colour of whatever it is measuring. */
+.kl-dim.is-pad .kl-dim-ext, .kl-dim.is-pad .kl-dim-run { stroke: var(--keyline-pad); opacity: 1; }
+.kl-dim.is-pad .kl-dim-text { fill: var(--keyline-pad); }
+/* Qualified by element: `stroke` on a <text> paints an outline over its own
+   fill, and the number comes out looking struck twice. */
+.kl-dim.is-pad line.kl-dim-box { stroke: var(--fg-2); opacity: 0.85; }
+.kl-dim.is-pad text.kl-dim-box { fill: var(--fg-2); opacity: 0.85; }
+.kl-dim.is-box line.kl-dim-box { stroke: var(--keyline-stroke); opacity: 1; }
+.kl-dim.is-box text.kl-dim-box { fill: var(--keyline-stroke); opacity: 1; }
+.kl-dim-box { opacity: 0.85; }
+
+/* The floating editor. Over the item, like Figma, so the number and the thing
+   it describes are in the same glance. */
+.kl-inspector {
+  position: absolute; transform: translateX(-50%); z-index: 5;
+  display: grid; gap: 5px; padding: 7px 8px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 7px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+}
+.kl-inspector-tabs { display: flex; gap: 2px; }
+.kl-itab {
+  border: 0; background: none; border-radius: 4px; padding: 1px 7px; cursor: pointer;
+  font-size: 10px; text-transform: capitalize; color: var(--fg-2);
+}
+.kl-itab.on { background: var(--accent); color: var(--accent-fg); }
+.kl-inspector-fields { display: flex; align-items: center; gap: 5px; }
+.kl-inspector-fields label { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--fg-2); }
+.kl-inspector-fields label.is-locked { opacity: .45; }
+.kl-inspector-fields input {
+  width: 58px; font-size: 11px; padding: 2px 5px; font-variant-numeric: tabular-nums;
+}
+
+/* The rail control. Width × height only; the origin is always centred. */
+.optical-panel { display: grid; gap: 14px; }
+.optical-size-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.optical-rows { display: grid; gap: 3px; }
+.optical-row { display: grid; grid-template-columns: 1fr 52px 10px 52px 20px; align-items: center; gap: 5px;
+  padding: 2px; border-radius: 5px; }
+.optical-row:hover { background: var(--bg-3, rgba(128, 128, 128, 0.08)); }
+.optical-row.is-selected { background: var(--bg-2); box-shadow: inset 2px 0 0 var(--accent, var(--fg)); }
+.or-name { background: none; border: 0; padding: 0 0 0 4px; font: inherit; font-size: 11px; color: var(--fg);
+  text-align: left; text-transform: capitalize; cursor: pointer; }
+.or-num { font-size: 11px; padding: 2px 4px; width: 100%; font-variant-numeric: tabular-nums; }
+.or-num:disabled { opacity: 0.5; }
+.optical-row.is-typed .or-num { border-color: var(--accent, var(--line)); }
+.or-x { font-size: 10px; color: var(--fg-2); text-align: center; }
+.or-users { font-size: 10px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- */
+/* The inspection preview: the icon, with the language drawn on it    */
+/* ---------------------------------------------------------------- */
+
+.icon-preview { display: block; border-radius: 10px; }
+.icon-preview.light { background: #fff; color: #111; }
+.icon-preview.dark { background: #111; color: #fff; }
+
+/* Annotation reads as annotation: never as heavy as the drawing. */
+.ip-grid-sub { stroke: currentColor; opacity: .16; }
+.ip-grid-whole { stroke: currentColor; opacity: .3; }
+.ip-safe-area { stroke: var(--ok); opacity: .9; fill: none; }
+.ip-keyline { stroke: var(--keyline-stroke); fill: none; opacity: .55; }
+.ip-handles circle { fill: var(--bg); stroke: var(--keyline-stroke); }
+
+/* A problem is drawn where it is, in the colour of how much it matters. */
+.ip-mark { fill: none; }
+.ip-error { stroke: var(--err); color: var(--err); }
+.ip-warning { stroke: var(--warn); color: var(--warn); }
+.ip-error circle, .ip-warning circle { fill: currentColor; fill-opacity: .35; }
+.ip-overflow-line { stroke: var(--err); opacity: .8; }
+
+/* ---------------------------------------------------------------- */
+/* The icon drawer: inspection wants width, so it opens at the bottom */
+/* ---------------------------------------------------------------- */
+
+.icon-drawer {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  max-height: 62vh; display: flex; flex-direction: column;
+  background: var(--bg); border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, .16);
+}
+/* Room under the grid so the last row is never trapped behind the drawer. */
+.split.with-drawer { padding-bottom: 64vh; }
+
+.drawer-head {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  padding: 9px 18px; border-bottom: 1px solid var(--line);
+}
+.drawer-head h2 { margin: 0; font-size: 14px; }
+.drawer-head .spacer { flex: 1; }
+
+.drawer-body {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(240px, .85fr) minmax(260px, 1fr);
+  gap: 0; overflow: hidden; flex: 1; min-height: 0;
+}
+.drawer-body > section { padding: 12px 16px; overflow-y: auto; min-width: 0; }
+.drawer-body > section + section { border-left: 1px solid var(--line); }
+.drawer-body h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2); }
+.drawer-body h3 .muted { text-transform: none; letter-spacing: 0; }
+
+.drawer-stage { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+/* A toolbar chip never breaks its own label: "Safe area" on two lines reads as
+   two controls. The bar wraps instead. */
+.drawer-canvas .canvas-bar { flex-wrap: wrap; row-gap: 6px; }
+.drawer-canvas .canvas-bar .chip { white-space: nowrap; }
+.drawer-true { display: flex; gap: 10px; align-items: flex-start; }
+.drawer-true figure { margin: 0; display: grid; gap: 4px; justify-items: center; }
+.drawer-true .swatch { padding: 8px; }
+
+.drawer-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.drawer-part { display: flex; align-items: center; gap: 5px; }
+.drawer-part select { flex: 1 1 auto; min-width: 0; font-size: 11px; padding: 2px 4px; }
+.drawer-part.is-pinned { outline: 1px solid var(--keyline-pad); outline-offset: 2px; border-radius: 4px; }
+
+/* Pointing at an issue is how you find it on the drawing, so make the row
+   look like something you can point at. */
+.drawer-issues li { cursor: default; padding: 2px 4px; border-radius: 4px; }
+.drawer-issues li:hover { background: var(--bg-2); }
+
+.drawer-ungoverned { border: 1px solid var(--warn); border-radius: var(--radius); padding: 10px; margin-top: 10px; }
+.drawer-ungoverned p { margin: 0 0 8px; }
+
+@media (max-width: 1000px) {
+  .drawer-body { grid-template-columns: 1fr; }
+  .drawer-body > section + section { border-left: 0; border-top: 1px solid var(--line); }
+  .icon-drawer { max-height: 74vh; }
+}

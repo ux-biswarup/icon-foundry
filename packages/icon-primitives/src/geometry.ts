@@ -341,16 +341,35 @@ function extend(b: Bounds, x: number, y: number): void {
 }
 
 /** Sample points along an SVG elliptical arc (endpoint parameterisation). */
-export function sampleArc(
+/**
+ * An arc's centre and angular span, from the endpoints SVG states it with.
+ *
+ * Exported because anything that wants a *point along* an arc — sampling it,
+ * splitting it, cutting it against a band — needs this same conversion, and a
+ * second implementation of it is a second set of sign conventions to get
+ * subtly wrong. The one that exists here is the one bounds have always used.
+ */
+export interface ArcParameters {
+  centre: Point;
+  rx: number;
+  ry: number;
+  /** Rotation of the ellipse, in radians. Zero for every arc this set draws. */
+  phi: number;
+  /** Angle of the start point, in radians. */
+  start: number;
+  /** Signed angle swept to the end point. */
+  sweep: number;
+}
+
+export function arcParameters(
   x0: number,
   y0: number,
   cmd: Extract<PathCommand, { c: "A" }>,
-  samples = ARC_SAMPLES,
-): Point[] {
+): ArcParameters | undefined {
   const { x, y, largeArc, sweep } = cmd;
   let rx = Math.abs(cmd.rx);
   let ry = Math.abs(cmd.ry);
-  if (rx === 0 || ry === 0) return [[x, y]];
+  if (rx === 0 || ry === 0) return undefined;
 
   const phi = (cmd.rotation * Math.PI) / 180;
   const cosPhi = Math.cos(phi);
@@ -383,17 +402,33 @@ export function sampleArc(
     if (ux * vy - uy * vx < 0) a = -a;
     return a;
   };
-  const theta1 = angle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+  const start = angle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
   let dTheta = angle((x1p - cxp) / rx, (y1p - cyp) / ry, (-x1p - cxp) / rx, (-y1p - cyp) / ry);
   if (!sweep && dTheta > 0) dTheta -= 2 * Math.PI;
   else if (sweep && dTheta < 0) dTheta += 2 * Math.PI;
 
+  return { centre: [cx, cy], rx, ry, phi, start, sweep: dTheta };
+}
+
+/** A point at an angle on the ellipse these parameters describe. */
+export function arcPoint(parameters: ArcParameters, angle: number): Point {
+  const { centre, rx, ry, phi } = parameters;
+  const ex = rx * Math.cos(angle);
+  const ey = ry * Math.sin(angle);
+  return [Math.cos(phi) * ex - Math.sin(phi) * ey + centre[0], Math.sin(phi) * ex + Math.cos(phi) * ey + centre[1]];
+}
+
+export function sampleArc(
+  x0: number,
+  y0: number,
+  cmd: Extract<PathCommand, { c: "A" }>,
+  samples = ARC_SAMPLES,
+): Point[] {
+  const parameters = arcParameters(x0, y0, cmd);
+  if (!parameters) return [[cmd.x, cmd.y]];
   const out: Point[] = [];
   for (let i = 0; i <= samples; i++) {
-    const t = theta1 + (dTheta * i) / samples;
-    const ex = rx * Math.cos(t);
-    const ey = ry * Math.sin(t);
-    out.push([cosPhi * ex - sinPhi * ey + cx, sinPhi * ex + cosPhi * ey + cy]);
+    out.push(arcPoint(parameters, parameters.start + (parameters.sweep * i) / samples));
   }
   return out;
 }
@@ -635,6 +670,60 @@ export function shapeDistance(a: Shape, b: Shape): number {
           const d = segmentDistance(pa[i]!, pa[i + 1]!, pb[j]!, pb[j + 1]!);
           if (d < best) best = d;
           if (best === 0) return 0;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/** The point on a segment nearest to `p`, clamped to the segment. */
+function pointSegmentClosest(p: Point, a: Point, b: Point): Point {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  let t = len2 === 0 ? 0 : ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return [a[0] + t * dx, a[1] + t * dy];
+}
+
+/**
+ * The nearest pair of points on two shapes — the witnesses for the distance
+ * `shapeDistance` reports.
+ *
+ * Same walk, same candidates, same answer; this one keeps the two points
+ * instead of collapsing them to a scalar. A gap you can only print is a gap a
+ * designer has to go looking for: with the witnesses, the studio can draw the
+ * offending span exactly where it is.
+ *
+ * Shapes that cross have no meaningful nearest pair, and callers skip that
+ * case — an intentional overlap is not a gap.
+ */
+export function closestPoints(a: Shape, b: Shape): [Point, Point] {
+  let best: [Point, Point] = [
+    [0, 0],
+    [0, 0],
+  ];
+  let bestDistance = Infinity;
+  for (const pa of sampleShape(a)) {
+    for (const pb of sampleShape(b)) {
+      for (let i = 0; i < pa.length - 1; i++) {
+        for (let j = 0; j < pb.length - 1; j++) {
+          const [p1, p2] = [pa[i]!, pa[i + 1]!];
+          const [q1, q2] = [pb[j]!, pb[j + 1]!];
+          const candidates: Array<[Point, Point]> = [
+            [p1, pointSegmentClosest(p1, q1, q2)],
+            [p2, pointSegmentClosest(p2, q1, q2)],
+            [pointSegmentClosest(q1, p1, p2), q1],
+            [pointSegmentClosest(q2, p1, p2), q2],
+          ];
+          for (const [p, q] of candidates) {
+            const d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+            if (d < bestDistance) {
+              bestDistance = d;
+              best = [p, q];
+            }
+          }
         }
       }
     }

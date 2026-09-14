@@ -4,7 +4,7 @@ import type { Library } from "@icon-foundry/icon-library";
 import type { PrimitiveRegistry } from "@icon-foundry/icon-primitives";
 import { renderSvg } from "@icon-foundry/icon-renderer";
 import type { IconSpec } from "@icon-foundry/icon-spec";
-import { validateIconSpec, type ValidationResult } from "@icon-foundry/icon-validator";
+import { fillability, validateIconSpec, type Fillability, type ValidationResult } from "@icon-foundry/icon-validator";
 
 export interface Rendered {
   svg: string | undefined;
@@ -30,6 +30,17 @@ export function renderWithLanguage(
     ? undefined
     : renderSvg(compose(spec, language, options), language, { onDark });
   return { svg, validation };
+}
+
+/**
+ * Can this spec be filled, under the library's own language and vocabulary.
+ *
+ * The studio asks this on the drawing in front of it rather than on the record,
+ * because a candidate has no record yet and the answer is what decides whether
+ * it is offered a filled version at all.
+ */
+export function fillabilityOf(spec: IconSpec, library: Library): Fillability {
+  return fillability(spec, library.languageFor(spec), { registry: library.registry() });
 }
 
 /** Validate and render with the library's own vocabulary and the icon's language. */

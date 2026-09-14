@@ -1,4 +1,5 @@
-import { compose } from "@icon-foundry/icon-composer";
+import { compose, resolveSpec } from "@icon-foundry/icon-composer";
+import type { PrimitiveRegistry } from "@icon-foundry/icon-primitives";
 import { parseIconLanguage, resolveTokens, serializeIconLanguage, type IconLanguage } from "@icon-foundry/icon-language";
 import type { IconRecord, Library } from "@icon-foundry/icon-library";
 import { offGrammarAngles, shapeDistance } from "@icon-foundry/icon-primitives";
@@ -136,7 +137,7 @@ export function proposeRules(library: Library, options: PromoteOptions = {}): Ru
   // 4. A badge size every badge already uses.
   const ratios = new Set<number>();
   for (const record of icons) {
-    const badge = badgeRatio(record);
+    const badge = badgeRatio(record, language, registry);
     if (badge !== undefined) ratios.add(badge);
   }
   if (ratios.size === 1) {
@@ -176,9 +177,12 @@ function smallestGap(icon: ReturnType<typeof compose>): number | undefined {
 }
 
 /** The badge's width as a share of the canvas, when an icon clearly has one. */
-function badgeRatio(record: IconRecord): number | undefined {
-  if (record.spec.elements.length < 2) return undefined;
-  const boxes = record.spec.elements.map(elementBox);
+function badgeRatio(record: IconRecord, language: IconLanguage, registry: PrimitiveRegistry): number | undefined {
+  // Resolved, because a derived icon carries no boxes of its own: its badge is
+  // whatever the grammar currently says, which is exactly what we are checking.
+  const elements = resolveSpec(record.spec, language, { registry }).elements;
+  if (elements.length < 2) return undefined;
+  const boxes = elements.map(elementBox);
   const smallest = boxes.reduce((a, b) => (a.width * a.height <= b.width * b.height ? a : b));
   const largest = boxes.reduce((a, b) => (a.width * a.height >= b.width * b.height ? a : b));
   if (smallest.width * smallest.height > largest.width * largest.height * 0.5) return undefined;

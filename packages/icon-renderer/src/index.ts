@@ -1,6 +1,6 @@
 import { applyOptics, compose, type ComposeOptions, type ComposedIcon, type ComposedShape } from "@icon-foundry/icon-composer";
 import type { IconLanguage, SizeTokens } from "@icon-foundry/icon-language";
-import type { PathCommand, Shape } from "@icon-foundry/icon-primitives";
+import { skeletonToCommands, type PathCommand, type Shape, type Skeleton } from "@icon-foundry/icon-primitives";
 import type { IconSpec } from "@icon-foundry/icon-spec";
 
 export interface RenderOptions {
@@ -91,6 +91,27 @@ export function shapeToPathData(shape: Shape, precision = 3): string {
       ].join("");
     }
   }
+}
+
+/**
+ * A skeleton as path data, one string per subpath.
+ *
+ * Lives here rather than beside the skeleton because this is where numbers are
+ * formatted. A second formatter in the geometry package would be a second answer
+ * to "how many decimals", and the two would drift.
+ */
+export function skeletonPaths(skeleton: Skeleton, precision = 3): string[] {
+  return skeleton.subpaths.map((subpath) =>
+    shapeToPathData(
+      { kind: "path", commands: skeletonToCommands({ ...skeleton, subpaths: [subpath] }), fillable: subpath.closed },
+      precision,
+    ),
+  );
+}
+
+/** The whole skeleton as one `d` string. */
+export function skeletonToPathData(skeleton: Skeleton, precision = 3): string {
+  return skeletonPaths(skeleton, precision).join("");
 }
 
 /**

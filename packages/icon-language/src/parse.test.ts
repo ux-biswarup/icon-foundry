@@ -3,6 +3,7 @@ import {
   DEFAULT_CHARACTER,
   DEFAULT_GRAMMAR,
   IconLanguageError,
+  OPTICAL_SHAPES,
   defaultOpticalBoxes,
   deriveTokens,
   hasSize,
@@ -29,13 +30,18 @@ const minimal = {
 };
 
 describe("parseIconLanguage", () => {
-  it("loads the bundled starter language with two optical sizes", () => {
+  it("loads the bundled starter language with three optical sizes", () => {
     expect(lucideInspired.id).toBe("lucide-inspired");
     expect(lucideInspired.canvas).toBe(24);
     expect(lucideInspired.defaultCanvas).toBe(24);
-    expect(lucideInspired.stroke).toEqual({ width: 2, cap: "round", join: "round" });
+    // Both shipped languages use the same weight ramp: 1.25 at 16, 1.5 at 24,
+    // 2.5 at 32. A preset is a starting point, and a starting point that draws
+    // a 16px icon heavier in proportion than its 24px one is a bad one.
+    expect(lucideInspired.stroke).toEqual({ width: 1.5, cap: "round", join: "round" });
+    expect(resolveTokens(lucideInspired, 16).stroke.width).toBe(1.25);
+    expect(resolveTokens(lucideInspired, 32).stroke.width).toBe(2.5);
     expect(lucideInspired.style.allowed).toEqual(["outline", "filled"]);
-    expect(Object.keys(lucideInspired.sizes).map(Number).sort()).toEqual([16, 24]);
+    expect(Object.keys(lucideInspired.sizes).map(Number).sort()).toEqual([16, 24, 32]);
   });
 
   it("applies defaults for optional fields", () => {
@@ -58,6 +64,63 @@ describe("parseIconLanguage", () => {
     });
   });
 
+  it("reproduces the drawn keyline sheet at both shipped sizes", () => {
+    // The numbers a designer measured off the set, not numbers a formula
+    // happened to produce. Fixed offsets matched the 24 row and missed the 16
+    // row by a unit, which is the whole reason the offsets scale.
+    const sheet = {
+      16: { safeArea: 1, square: 13, circle: 14, long: 14, short: 11 },
+      24: { safeArea: 1.5, square: 19, circle: 21, long: 21, short: 17 },
+    } as const;
+    for (const [canvas, want] of Object.entries(sheet)) {
+      const boxes = defaultOpticalBoxes(Number(canvas), want.safeArea, 0.5);
+      expect([boxes.square.width, boxes.square.height]).toEqual([want.square, want.square]);
+      expect([boxes.circle.width, boxes.circle.height]).toEqual([want.circle, want.circle]);
+      expect([boxes.horizontal.width, boxes.horizontal.height]).toEqual([want.long, want.short]);
+      expect([boxes.vertical.width, boxes.vertical.height]).toEqual([want.short, want.long]);
+    }
+  });
+
+  it("insets a centred keyline box by a whole number of grid steps", () => {
+    // A box inset by an odd number of steps starts on a half step, and a
+    // language with a coarse grid then fails its own layout rule on the
+    // defaults. What this function controls is the inset, not the safe area:
+    // a set that puts its safe area off-grid has already made that choice, and
+    // the boxes must not compound it.
+    for (const grid of [0.25, 0.5, 1, 2]) {
+      for (const [canvas, safeArea] of [[16, 1], [24, 1.5], [24, 2], [32, 2], [20, 1]] as const) {
+        const boxes = defaultOpticalBoxes(canvas, safeArea, grid);
+        for (const shape of OPTICAL_SHAPES) {
+          const box = boxes[shape];
+          const steps = (v: number) => Math.abs(v / grid - Math.round(v / grid));
+          expect(steps(box.x - safeArea), `${shape} x ${box.x} at ${canvas}/${safeArea} grid ${grid}`).toBeLessThan(1e-9);
+          expect(steps(box.y - safeArea), `${shape} y ${box.y} at ${canvas}/${safeArea} grid ${grid}`).toBeLessThan(1e-9);
+          expect(box.width).toBeGreaterThan(0);
+          expect(box.height).toBeGreaterThan(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(canvas);
+          expect(box.y + box.height).toBeLessThanOrEqual(canvas);
+        }
+      }
+    }
+  });
+
+  it("keeps every shipped language's keyline boxes on its own grid", () => {
+    // The invariant that actually matters, checked against the real files
+    // rather than against a hypothetical safe area.
+    for (const lang of [technical, lucideInspired]) {
+      for (const canvas of Object.keys(lang.sizes).map(Number)) {
+        const t = resolveTokens(lang, canvas);
+        for (const shape of OPTICAL_SHAPES) {
+          const box = t.optical[shape];
+          for (const [axis, v] of [["x", box.x], ["y", box.y]] as const) {
+            const off = Math.abs(v / t.grid - Math.round(v / t.grid)) > 1e-9;
+            expect(off, `${lang.id} ${canvas} ${shape} ${axis}=${v} off the ${t.grid} grid`).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
   it("lets a language override individual optical boxes", () => {
     const lang = parseIconLanguage({ ...minimal, optical: { circle: { x: 0, y: 0, width: 16, height: 16 } } });
     expect(lang.optical.circle).toEqual({ x: 0, y: 0, width: 16, height: 16 });
@@ -69,7 +132,7 @@ describe("parseIconLanguage", () => {
 
   it("additional sizes inherit from the default and derive their own optical boxes", () => {
     const t16 = resolveTokens(lucideInspired, 16);
-    expect(t16.stroke).toEqual({ width: 1.5, cap: "round", join: "round" });
+    expect(t16.stroke).toEqual({ width: 1.25, cap: "round", join: "round" });
     expect(t16.grid).toBe(1);
     expect(t16.safeArea).toBe(1);
     expect(t16.optical.circle).toEqual({ x: 1, y: 1, width: 14, height: 14 });
@@ -106,12 +169,57 @@ describe("parseIconLanguage", () => {
   });
 });
 
+describe("the filled style", () => {
+  it("defaults to no policy, because most sets need filled versions of a handful and of nothing else", () => {
+    expect(technical.style.filled).toEqual({ requiredFor: [] });
+  });
+
+  it("reads the concept tags a product needs filled, without repeating one", () => {
+    const lang = parseIconLanguage({
+      ...serializeIconLanguage(technical),
+      style: { default: "outline", allowed: ["outline", "filled"], filled: { requiredFor: ["navigation", "state", "navigation"] } },
+    });
+    expect(lang.style.filled.requiredFor).toEqual(["navigation", "state"]);
+    // It survives a round trip, so a policy set in the studio is not lost on save.
+    expect(parseIconLanguage(serializeIconLanguage(lang)).style.filled.requiredFor).toEqual(["navigation", "state"]);
+  });
+
+  it("refuses a policy the style list cannot satisfy", () => {
+    expect(() =>
+      parseIconLanguage({
+        ...serializeIconLanguage(technical),
+        style: { default: "outline", allowed: ["outline"], filled: { requiredFor: ["navigation"] } },
+      }),
+    ).toThrow(/filled style is not allowed/);
+  });
+
+  it("writes no policy into a file that has none", () => {
+    expect(serializeIconLanguage(technical).style.filled).toBeUndefined();
+  });
+
+  it("defaults the narrowest knock-out to one stroke width, per size, and keeps an override", () => {
+    for (const canvas of [16, 24, 32]) {
+      const tokens = resolveTokens(technical, canvas);
+      expect(tokens.minCutout, `${canvas}px`).toBe(tokens.stroke.width);
+    }
+    const lang = parseIconLanguage({ ...serializeIconLanguage(technical), minCutout: 0.75 });
+    expect(resolveTokens(lang, 16).minCutout).toBe(0.75);
+    // Stated because it differs from the stroke; the other sizes stay derived.
+    expect(serializeIconLanguage(lang).minCutout).toBe(0.75);
+    expect(serializeIconLanguage(lang).sizes?.every((s) => s.minCutout === undefined)).toBe(true);
+  });
+});
+
 describe("character and grammar", () => {
   it("reads the Technical language's character and grammar", () => {
     expect(technical.id).toBe("technical");
     expect(technical.defaultCanvas).toBe(16);
+    // The shipped weight ramp. It is the starting point, not a rule: every
+    // size's stroke is editable in the studio, and a language that states its
+    // own widths keeps them.
     expect(resolveTokens(technical, 16).stroke.width).toBe(1.25);
     expect(resolveTokens(technical, 24).stroke.width).toBe(1.5);
+    expect(resolveTokens(technical, 32).stroke.width).toBe(2.5);
     // Cursor's rule: a gap never smaller than 3 grid units.
     const t16 = resolveTokens(technical, 16);
     expect(t16.minNegativeSpace).toBe(3 * t16.grid);
@@ -170,7 +278,7 @@ describe("serializeIconLanguage", () => {
     const again = parseIconLanguage(serializeIconLanguage(custom));
     expect(again).toEqual(custom);
     expect(again.optical.circle).toEqual({ x: 0, y: 0, width: 16, height: 16 });
-    expect(Object.keys(again.sizes).map(Number).sort()).toEqual([16, 24]);
+    expect(Object.keys(again.sizes).map(Number).sort()).toEqual([16, 24, 32]);
   });
 
   it("omits what a reader would derive, so authored files stay small", () => {
@@ -296,6 +404,19 @@ describe("construction traits", () => {
       inset: 1,
       accentSize: 1,
       slope: "mixed",
+      // The radius ramp is the one default that is not the number 1, because
+      // "how round is a corner" has no identity value — a ramp of zero is a set
+      // with square corners, which is a decision, not a neutral one. It is still
+      // safe in the sense this test is about: it is a multiple of the language's
+      // own `cornerRadius`, so a right angle rounds exactly the way that
+      // language's rectangles already round, and it only reaches geometry drawn
+      // as a skeleton. Nothing already drawn moves.
+      corners: [
+        { upTo: 60, radius: 0.5 },
+        { upTo: 120, radius: 1 },
+        { radius: 2 },
+      ],
+      cornerSnap: false,
       exceptions: {},
     };
     expect(parseIconLanguage(base).construction).toEqual(identity);

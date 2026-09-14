@@ -2,7 +2,7 @@ import { compose } from "@icon-foundry/icon-composer";
 import type { IconLanguage } from "@icon-foundry/icon-language";
 import { definePathPrimitive, type PathPrimitiveDefinition, type PrimitiveRegistry } from "@icon-foundry/icon-primitives";
 import { renderSvg } from "@icon-foundry/icon-renderer";
-import type { IconSpec } from "@icon-foundry/icon-spec";
+import { specElementNames, type IconSpec } from "@icon-foundry/icon-spec";
 import { validateIconSpec, type ValidationResult } from "@icon-foundry/icon-validator";
 import type { Library } from "@icon-foundry/icon-library";
 import type { AgentStep, Candidate, ProposedConcept } from "./types.js";
@@ -67,14 +67,7 @@ export class Session {
 
   /** Elements a spec uses that only exist as proposals in this session. */
   newElementsFor(spec: IconSpec): PathPrimitiveDefinition[] {
-    const used = new Set<string>();
-    const walk = (els: IconSpec["elements"]) => {
-      for (const el of els) {
-        if (el.children) walk(el.children);
-        else if (el.primitive) used.add(el.primitive);
-      }
-    };
-    walk(spec.elements);
+    const used = new Set(specElementNames(spec));
     return [...this.proposedElements.values()].filter((d) => used.has(d.name));
   }
 

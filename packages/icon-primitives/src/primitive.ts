@@ -14,6 +14,8 @@ export interface PrimitiveContext {
   /** Factor the composer will scale this primitive by. Divide canvas-unit
    * values (like `cornerRadius`) by it to keep them exact after scaling. */
   scale: number;
+  /** Layout grid in canvas units. Only corner snapping reads it. */
+  grid?: number;
   /** How this language builds a part. Optional so a caller composing one shape
    * in isolation does not have to supply a whole language. */
   construction?: Construction;

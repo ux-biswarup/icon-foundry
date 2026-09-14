@@ -3,6 +3,7 @@ import type { PrimitiveRegistry } from "@icon-foundry/icon-primitives";
 import type { IconSpec } from "@icon-foundry/icon-spec";
 import { useMemo } from "react";
 import { renderWithLanguage } from "../lib/render.js";
+import { useGround } from "../lib/theme.js";
 import { IconSvg } from "./IconSvg.js";
 
 /**
@@ -11,7 +12,8 @@ import { IconSvg } from "./IconSvg.js";
  * should be chosen by looking at icons rather than by typing a number.
  *
  * True size first: the row a designer judges is the one at the language's own
- * canvas, not the zoomed one.
+ * canvas, not the zoomed one. It draws on whichever ground the app is in, so a
+ * grade shows up here the moment the theme is switched.
  */
 export function ExemplarBoard({
   exemplars,
@@ -25,14 +27,16 @@ export function ExemplarBoard({
   /** When given, each exemplar is shown before and after, for a publish diff. */
   compareWith?: IconLanguage;
 }) {
+  const ground = useGround();
+  const onDark = ground === "dark";
   const rendered = useMemo(
     () =>
       exemplars.map((spec) => ({
         spec,
-        after: renderWithLanguage(spec, language, registry),
-        before: compareWith ? renderWithLanguage(spec, compareWith, registry) : undefined,
+        after: renderWithLanguage(spec, language, registry, onDark),
+        before: compareWith ? renderWithLanguage(spec, compareWith, registry, onDark) : undefined,
       })),
-    [exemplars, language, registry, compareWith],
+    [exemplars, language, registry, compareWith, onDark],
   );
 
   // The second row is the language's own smallest size, which is where a
@@ -60,8 +64,8 @@ export function ExemplarBoard({
           {compareWith
             ? `${changed.length} of ${rendered.length} change`
             : smallest === language.defaultCanvas
-              ? `${rendered.length} icons at ${language.defaultCanvas}px, light and dark`
-              : `${rendered.length} icons at ${language.defaultCanvas}px and ${smallest}px`}
+              ? `${rendered.length} icons at ${language.defaultCanvas}px, on ${ground}`
+              : `${rendered.length} icons at ${language.defaultCanvas}px and ${smallest}px, on ${ground}`}
         </span>
       </div>
 
@@ -71,27 +75,32 @@ export function ExemplarBoard({
         </p>
       )}
 
-      <div className="swatch light board-row">
+      <div className={`swatch ${ground} board-row`}>
         {rendered.map(({ spec, after }) => (
           <IconSvg key={spec.name} svg={after.svg} size={spec.canvas} title={spec.name} />
         ))}
       </div>
-      <div className="swatch dark board-row">
-        {rendered.map(({ spec, after }) => (
-          <IconSvg key={spec.name} svg={after.svg} size={smallest} title={`${spec.name} at ${smallest}px`} />
-        ))}
-      </div>
+      {/* The second row was the same icons on the other ground. The theme
+          control does that now, so this row earns its place only when it shows
+          a size the first one does not. */}
+      {smallest !== language.defaultCanvas && (
+        <div className={`swatch ${ground} board-row`}>
+          {rendered.map(({ spec, after }) => (
+            <IconSvg key={spec.name} svg={after.svg} size={smallest} title={`${spec.name} at ${smallest}px`} />
+          ))}
+        </div>
+      )}
 
       <div className="exemplar-grid">
         {rendered.map(({ spec, after, before }) => (
           <figure key={spec.name} className={before && before.svg !== after.svg ? "changed" : ""}>
             <div className="pair">
               {before && (
-                <div className="swatch light">
+                <div className={`swatch ${ground}`}>
                   <IconSvg svg={before.svg} size={64} />
                 </div>
               )}
-              <div className="swatch light">
+              <div className={`swatch ${ground}`}>
                 <IconSvg svg={after.svg} size={64} />
               </div>
             </div>

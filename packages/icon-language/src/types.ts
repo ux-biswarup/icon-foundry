@@ -1,6 +1,23 @@
 import type { Arrangement } from "@icon-foundry/icon-spec";
 
 export type IconStyle = "outline" | "filled";
+
+/**
+ * Which icons this product needs a filled version of.
+ *
+ * Stated by concept tag rather than by icon name: naming individual icons here
+ * means editing the language every time the set grows, and the language is the
+ * one file that should change least.
+ *
+ * This is a *policy*, not a rule. Nothing refuses an icon for having no filled
+ * version — the system reports coverage against this list and a person decides.
+ * Whether a filled version would *work* is a separate question, and that one is
+ * geometry: see `fillability` in icon-validator.
+ */
+export interface FilledPolicy {
+  /** Concept tags whose icons the product needs filled. Empty means none. */
+  requiredFor: string[];
+}
 export type StrokeCap = "butt" | "round" | "square";
 export type StrokeJoin = "miter" | "round" | "bevel";
 export type DetailLevel = "low" | "medium" | "high";
@@ -74,6 +91,15 @@ export interface SizeTokens {
   /** Minimum visible gap between shapes of different elements, in units.
    * Zero disables the rule. */
   minNegativeSpace: number;
+  /**
+   * Narrowest knock-out that still reads in the filled style, in units.
+   *
+   * The filled analogue of `minNegativeSpace`. A hole cut from a solid shape
+   * stops reading below roughly one stroke width and the icon goes solid, and
+   * the size where that happens is almost always the smallest one — which is
+   * why this is a token per optical size rather than a single number.
+   */
+  minCutout: number;
   optical: OpticalBoxes;
   /** Optical corrections applied after composition. All off by default. */
   optics: OpticsTokens;
@@ -157,6 +183,28 @@ export type ApertureStyle = "mixed" | "line" | "outline" | "notch";
 /** The pitch of a sloping or receding plane. `mixed` is an unmade decision. */
 export type SlopeStyle = "mixed" | "shallow" | "iso" | "45";
 
+/**
+ * How hard a corner rounds, by how sharp it is.
+ *
+ * The set's construction method is straight segments, then rounded joins — so
+ * "how round" is not one number. A gentle bend can take a generous radius; the
+ * same radius on a 30° point eats the point. Lucide encodes this as a table in
+ * its Arcify tool; here it is a property of the language, because it is a
+ * decision about how a set is built rather than a setting in an editor.
+ *
+ * The radius is a **multiple of the size's `cornerRadius`**, not a length. That
+ * buys two things: a corner rounds the way that language's rectangles round, so
+ * there is one roundness to reason about; and it scales across optical sizes
+ * for free, because `cornerRadius` already does.
+ */
+export interface CornerBand {
+  /** Applies to corners at or below this included angle in degrees. The last
+   *  band omits it and takes everything above the one before. */
+  upTo?: number;
+  /** Radius as a multiple of the size's `cornerRadius`. */
+  radius: number;
+}
+
 export interface Construction {
   /**
    * How much of the exterior corner radius an interior corner takes, 0 to 1.
@@ -197,6 +245,23 @@ export interface Construction {
   accentSize: number;
   /** The pitch of a sloping or receding plane. See SlopeStyle. */
   slope: SlopeStyle;
+  /**
+   * The radius ramp, sharpest band first. See CornerBand.
+   *
+   * The default says: a right angle rounds exactly like this language's
+   * rectangles do, a gentle bend twice as hard, a sharp point half as hard.
+   */
+  corners: CornerBand[];
+  /**
+   * Adjust a rounded corner so its tangent points land on the layout grid.
+   *
+   * Off by default, because it moves a radius away from the number the ramp
+   * states and a control that silently disagrees with its own value is worse
+   * than one that is merely coarse. On, it is the general form of the two
+   * constants Lucide hardcodes for diagonal corners — though not their exact
+   * values; see the note in `arcify`.
+   */
+  cornerSnap: boolean;
   /**
    * Per-part departures from the values above.
    *
@@ -305,6 +370,8 @@ export interface IconLanguage extends SizeTokens {
   style: {
     default: IconStyle;
     allowed: IconStyle[];
+    /** Which icons the product requires a filled version of. See FilledPolicy. */
+    filled: FilledPolicy;
   };
   colors: {
     allowed: string[];
@@ -334,6 +401,7 @@ export interface SizeInput {
   cornerRadius?: number;
   limits?: Partial<DetailLimits>;
   minNegativeSpace?: number;
+  minCutout?: number;
   optical?: Partial<OpticalBoxes>;
   optics?: Partial<OpticsTokens>;
 }
@@ -362,7 +430,7 @@ export interface IconLanguageInput {
   stroke: { width: number; cap?: StrokeCap; join?: StrokeJoin };
   /** Omit to derive from the personality axes. Present means an override. */
   cornerRadius?: number;
-  style: { default: IconStyle; allowed?: IconStyle[] };
+  style: { default: IconStyle; allowed?: IconStyle[]; filled?: Partial<FilledPolicy> };
   colors?: { allowed?: string[] };
   detail?: DetailLevel;
   character?: Partial<IconCharacter>;
@@ -372,6 +440,7 @@ export interface IconLanguageInput {
   preferences?: Preferences;
   limits?: Partial<DetailLimits>;
   minNegativeSpace?: number;
+  minCutout?: number;
   optical?: Partial<OpticalBoxes>;
   optics?: Partial<OpticsTokens>;
   sizes?: SizeInput[];

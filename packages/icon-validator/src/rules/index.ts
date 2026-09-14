@@ -1,6 +1,6 @@
 import { composedBounds, topLevelIndex } from "@icon-foundry/icon-composer";
 import { hasSize } from "@icon-foundry/icon-language";
-import { isFiniteShape, offGrammarAngles, shapeDistance } from "@icon-foundry/icon-primitives";
+import { closestPoints, isFiniteShape, offGrammarAngles, shapeDistance, type Point, type Shape } from "@icon-foundry/icon-primitives";
 import { elementBox, type IconElement } from "@icon-foundry/icon-spec";
 import { defineRule, type ValidationIssue, type ValidationRule } from "../types.js";
 
@@ -108,6 +108,7 @@ export const safeAreaRule = defineRule({
         severity: "error",
         rule: "safeArea",
         message: `Geometry leaves the ${tokens.safeArea}-unit safe area by ${overflow.toFixed(2)} units (bounds ${b.minX.toFixed(2)}, ${b.minY.toFixed(2)} → ${b.maxX.toFixed(2)}, ${b.maxY.toFixed(2)}).`,
+        evidence: [{ kind: "bounds", bounds: b }],
       },
     ];
   },
@@ -230,11 +231,22 @@ export const gridRule = defineRule({
       const box = elementBox(el);
       const off = (["x", "y", "width", "height"] as const).filter((k) => !onGrid(box[k], tokens.grid));
       if (off.length > 0) {
+        // Mark every corner that sits off the grid. Asked of the coordinates
+        // themselves rather than inferred from which fields were off: an
+        // off-grid `x` puts all four corners in the wrong column, because the
+        // right-hand pair is `x + width`.
+        const points: Point[] = [];
+        for (const x of [box.x, box.x + box.width]) {
+          for (const y of [box.y, box.y + box.height]) {
+            if (!onGrid(x, tokens.grid) || !onGrid(y, tokens.grid)) points.push([x, y]);
+          }
+        }
         issues.push({
           severity: "warning",
           rule: "grid",
           message: `Element ${off.join(", ")} not on the ${tokens.grid}-unit grid.`,
           source: `elements[${i}]`,
+          ...(points.length > 0 && { evidence: [{ kind: "points" as const, points }] }),
         });
       }
     });
@@ -257,7 +269,7 @@ export const negativeSpaceRule = defineRule({
     const half = (item: (typeof composed.shapes)[number]) =>
       item.style === "filled" && item.shape.fillable ? 0 : item.stroke.width / 2;
 
-    const worst = new Map<string, { gap: number; a: number; b: number }>();
+    const worst = new Map<string, { gap: number; a: number; b: number; shapeA: Shape; shapeB: Shape }>();
     for (let i = 0; i < composed.shapes.length; i++) {
       for (let j = i + 1; j < composed.shapes.length; j++) {
         const A = composed.shapes[i]!;
@@ -271,18 +283,26 @@ export const negativeSpaceRule = defineRule({
         if (gap >= min - EPS) continue;
         const key = `${Math.min(ta, tb)}-${Math.max(ta, tb)}`;
         const prev = worst.get(key);
-        if (!prev || gap < prev.gap) worst.set(key, { gap, a: Math.min(ta, tb), b: Math.max(ta, tb) });
+        if (!prev || gap < prev.gap) {
+          worst.set(key, { gap, a: Math.min(ta, tb), b: Math.max(ta, tb), shapeA: A.shape, shapeB: B.shape });
+        }
       }
     }
-    return [...worst.values()].map(({ gap, a, b }) => ({
-      severity: "warning" as const,
-      rule: "negativeSpace",
-      message:
-        gap <= 0
-          ? `elements[${a}] and elements[${b}] nearly touch without crossing (${gap.toFixed(2)} units); either overlap them deliberately or keep a ${min}-unit gap.`
-          : `Gap between elements[${a}] and elements[${b}] is ${gap.toFixed(2)} units; the language asks for at least ${min}.`,
-      source: `elements[${b}]`,
-    }));
+    return [...worst.values()].map(({ gap, a, b, shapeA, shapeB }) => {
+      // The two points that are too close. Drawing the span between them is
+      // the difference between "a gap is wrong" and "*this* gap is wrong".
+      const [pa, pb] = closestPoints(shapeA, shapeB);
+      return {
+        severity: "warning" as const,
+        rule: "negativeSpace",
+        message:
+          gap <= 0
+            ? `elements[${a}] and elements[${b}] nearly touch without crossing (${gap.toFixed(2)} units); either overlap them deliberately or keep a ${min}-unit gap.`
+            : `Gap between elements[${a}] and elements[${b}] is ${gap.toFixed(2)} units; the language asks for at least ${min}.`,
+        source: `elements[${b}]`,
+        evidence: [{ kind: "gap" as const, a: pa, b: pb, gap }],
+      };
+    });
   },
 });
 

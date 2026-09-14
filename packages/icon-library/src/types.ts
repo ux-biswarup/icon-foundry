@@ -87,6 +87,24 @@ export interface ConceptRecord {
   replacedBy?: string;
 }
 
+/**
+ * What a set has and has not got in the filled style.
+ *
+ * `required` is the language's policy applied to what is published; `missing`
+ * is the part of it with no filled version yet. `covered` counts every icon
+ * that has one, policy or not, because a team may fill icons the policy never
+ * asked for and that is not an error either.
+ */
+export interface FilledCoverage {
+  /** The variant this is coverage of. */
+  kind: VariantKind;
+  /** The concept tags the language asks for, copied so the caller can show them. */
+  policy: string[];
+  required: IconRecord[];
+  missing: IconRecord[];
+  covered: IconRecord[];
+}
+
 export type IconStatus = "draft" | "review" | "published" | "deprecated";
 
 export const ICON_STATUSES: readonly IconStatus[] = ["draft", "review", "published", "deprecated"];
@@ -99,10 +117,52 @@ export const STATUS_TRANSITIONS: Record<IconStatus, readonly IconStatus[]> = {
   deprecated: ["published"],
 };
 
+/**
+ * The ways an icon exists besides its canonical drawing.
+ *
+ * `filled` is the same shape read as solid; `off` is the same shape with a slash
+ * cut through it. Both are *derived* from the canonical spec by a pure function
+ * of it and the language, which is why they are variants rather than icons: a
+ * second record would double every concept and break the one-published-icon-
+ * per-concept rule the library enforces.
+ */
+export type VariantKind = "filled" | "off";
+
+export const VARIANT_KINDS: readonly VariantKind[] = ["filled", "off"];
+
+/**
+ * The filled version of an icon, when it has one.
+ *
+ * A style is a variant of an icon rather than a second icon: the library
+ * enforces one published icon per concept per language, and a `warehouse-filled`
+ * record of its own would double every concept and break that.
+ *
+ * `derived` is the common case and costs nothing — the filled drawing is the
+ * outline's own closed loops read as solid, with its declared cutouts as holes.
+ * A `spec` appears only where the derived version was not good enough and
+ * someone drew the difference, and it then earns its way to `published` through
+ * the same approval every other draft goes through.
+ */
+export interface FilledVariant {
+  status: FilledStatus;
+  /** Present only when the derived fill was not good enough and this was drawn. */
+  spec?: IconSpec;
+  updatedAt: string;
+}
+
+export type FilledStatus = "derived" | "draft" | "published";
+
+export const FILLED_STATUSES: readonly FilledStatus[] = ["derived", "draft", "published"];
+
 export interface IconRecord {
   /** The canonical icon. `spec.name` is the record's identity. */
   spec: IconSpec;
   status: IconStatus;
+  /**
+   * The variants this icon has. Absent means it has none, which is the normal
+   * state for most icons in most sets rather than a gap to be closed.
+   */
+  variants?: Partial<Record<VariantKind, FilledVariant>>;
   /** Free-form search terms. */
   tags: string[];
   /** Free-form search terms for concepts this icon touches. */

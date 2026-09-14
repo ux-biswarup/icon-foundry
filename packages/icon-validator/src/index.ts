@@ -1,4 +1,4 @@
-import { compose, ComposeError, type ComposeOptions, type ComposedIcon } from "@icon-foundry/icon-composer";
+import { compose, resolveSpec, ComposeError, type ComposeOptions, type ComposedIcon, type ResolvedSpec } from "@icon-foundry/icon-composer";
 import { hasSize, nearestTokens, resolveTokens, type IconLanguage } from "@icon-foundry/icon-language";
 import { defaultRegistry } from "@icon-foundry/icon-primitives";
 import type { IconSpec } from "@icon-foundry/icon-spec";
@@ -11,6 +11,7 @@ export * from "./types.js";
 export * from "./rules/index.js";
 export * from "./scorers/index.js";
 export { builtInHumanRules } from "./human.js";
+export * from "./fillability.js";
 
 export interface ValidateOptions extends ComposeOptions {
   /** Hard rules to run. Defaults to all built-in rules. */
@@ -52,8 +53,25 @@ export function validateIconSpec(
     }
   }
 
+  // Resolve once, and hand every rule the same geometry the composer drew.
+  // A spec that cannot be resolved still validates: the reason is reported and
+  // the rules run over whatever it did carry, so the caller sees the cause
+  // alongside everything else that is wrong.
+  let resolved: ResolvedSpec;
+  try {
+    resolved = resolveSpec(spec, language, { registry });
+  } catch (error) {
+    issues.push({
+      severity: "error",
+      rule: "compose",
+      message: error instanceof Error ? error.message : String(error),
+      source: "spec",
+    });
+    resolved = { ...spec, elements: spec.elements ?? [] };
+  }
+
   const tokens = hasSize(language, spec.canvas) ? resolveTokens(language, spec.canvas) : nearestTokens(language, spec.canvas);
-  const ctx: RuleContext = { spec, language, tokens, composed, registry };
+  const ctx: RuleContext = { spec: resolved, language, tokens, composed, registry };
 
   const passed: string[] = [];
   for (const rule of rules) {

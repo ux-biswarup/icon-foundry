@@ -1,19 +1,25 @@
 import type { AgentResult, Candidate } from "@icon-foundry/icon-agent";
 import type { IconStyle } from "@icon-foundry/icon-language";
 import { parseIconSpec } from "@icon-foundry/icon-spec";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PreviewStrip } from "../components/IconSvg.js";
 import { ScoreSummary } from "../components/Scores.js";
 import { ValidationList } from "../components/ValidationList.js";
 import { agentStatus, requestCandidates, type AgentStatus } from "../lib/agentClient.js";
-import { renderSpec } from "../lib/render.js";
+import { fillabilityOf, renderSpec } from "../lib/render.js";
 import { navigate } from "../lib/router.js";
 import { useLibrary } from "../store/LibraryContext.js";
 
 export function CreatePage() {
   const { library, mutate } = useLibrary();
   const [brief, setBrief] = useState("");
-  const [style, setStyle] = useState<IconStyle | "">("");
+  /**
+   * Which styles are being asked for. Both is the common case for an icon that
+   * appears in a tab bar, and asking at creation is the only time the answer is
+   * cheap: finding out at export that half a set has no filled version is
+   * finding out too late.
+   */
+  const [styles, setStyles] = useState<IconStyle[]>(() => [library?.language.style.default ?? "outline"]);
   const [canvas, setCanvas] = useState<number>(() => library?.language.defaultCanvas ?? 24);
   const [status, setStatus] = useState<AgentStatus>({ model: null, error: null, reachable: false });
   const [busy, setBusy] = useState(false);
@@ -28,6 +34,12 @@ export function CreatePage() {
 
   if (!library) return null;
   const sizes = Object.keys(library.language.sizes).map(Number).sort((a, b) => a - b);
+  const allowed = library.language.style.allowed;
+  // The agent draws one icon. When both styles are wanted the drawing is the
+  // outline one and the filled version comes off its closed loops, which is the
+  // whole economy of the filled style.
+  const drawn: IconStyle = styles.includes("outline") ? "outline" : (styles[0] ?? "outline");
+  const wantsFilled = styles.includes("filled");
 
   const run = async (extra: { feedback?: string; previous?: Candidate } = {}) => {
     const text = brief.trim();
@@ -39,7 +51,7 @@ export function CreatePage() {
         {
           text,
           canvas,
-          ...(style && { style }),
+          style: drawn,
           ...(extra.feedback && { feedback: extra.feedback }),
           ...(extra.previous && { previous: extra.previous.spec }),
         },
@@ -67,6 +79,12 @@ export function CreatePage() {
         // the next person asking for this needs no model at all.
         if (c.newConcept) await lib.saveConcept({ ...c.newConcept, source });
         await lib.save(c.spec, { source, ...(c.concept && { concept: c.concept }) });
+        // Derived, so nothing is drawn twice. An icon whose closed loops cannot
+        // carry a fill was already flagged on the candidate, and is saved
+        // without one rather than with a broken one.
+        if (wantsFilled && drawn !== "filled" && fillabilityOf(c.spec, lib).ok) {
+          await lib.setVariant(c.spec.name, "filled");
+        }
       });
       navigate(`library/${encodeURIComponent(c.spec.name)}`);
     } catch (e) {
@@ -88,17 +106,23 @@ export function CreatePage() {
           />
         </label>
         <div className="brief-options">
-          <label>
-            Style
-            <select value={style} onChange={(e) => setStyle(e.target.value as IconStyle | "")}>
-              <option value="">Language default ({library.language.style.default})</option>
-              {library.language.style.allowed.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="style-picks">
+            <span className="muted small-text">Styles</span>
+            {allowed.map((s) => (
+              <label key={s} className={styles.includes(s) ? "on" : ""}>
+                <input
+                  type="checkbox"
+                  checked={styles.includes(s)}
+                  onChange={(e) => {
+                    const next = e.target.checked ? [...styles, s] : styles.filter((x) => x !== s);
+                    // An icon in no style at all is not a request.
+                    if (next.length > 0) setStyles(next);
+                  }}
+                />
+                {s}
+              </label>
+            ))}
+          </div>
           <label>
             Size
             <select value={canvas} onChange={(e) => setCanvas(Number(e.target.value))}>
@@ -158,6 +182,7 @@ export function CreatePage() {
                 candidate={c}
                 letter={String.fromCharCode(65 + i)}
                 focused={focus?.id === c.id}
+                wantsFilled={wantsFilled && drawn !== "filled"}
                 onFocus={() => setFocus(c)}
                 onApprove={() => void approve(c)}
                 onChange={(spec) => {
@@ -202,10 +227,37 @@ export function CreatePage() {
   );
 }
 
+/**
+ * Whether this candidate can carry the filled version the brief asked for.
+ *
+ * Said here, on the candidate, because this is the last moment the answer is
+ * cheap: another candidate may fill perfectly, and choosing between them is the
+ * whole point of showing more than one.
+ */
+function FilledNote({ spec }: { spec: Candidate["spec"] }) {
+  const { library } = useLibrary();
+  const result = useMemo(() => (library ? fillabilityOf(spec, library) : undefined), [spec, library]);
+  if (!result) return null;
+  if (result.ok && result.reasons.length === 0) {
+    return <p className="filled-note ok">Fills cleanly — its closed loops carry the solid version.</p>;
+  }
+  return (
+    <div className={`filled-note ${result.ok ? "warn" : "no"}`}>
+      <strong>{result.ok ? "Fills, with a loss" : "No filled version"}</strong>
+      <ul>
+        {result.reasons.map((r, i) => (
+          <li key={`${r.code}-${i}`}>{r.message}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function CandidateCard({
   candidate: c,
   letter,
   focused,
+  wantsFilled,
   onFocus,
   onApprove,
   onChange,
@@ -213,10 +265,13 @@ function CandidateCard({
   candidate: Candidate;
   letter: string;
   focused: boolean;
+  /** The brief asked for a filled version too, so this candidate owes one. */
+  wantsFilled: boolean;
   onFocus: () => void;
   onApprove: () => void;
   onChange: (spec: Candidate["spec"]) => void;
 }) {
+  const { library } = useLibrary();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(() => JSON.stringify(c.spec, null, 2));
   const [err, setErr] = useState<string>();
@@ -228,8 +283,13 @@ function CandidateCard({
         {c.overall !== undefined && <span className="muted small-text">{c.overall.toFixed(2)}</span>}
         {c.newElements.length > 0 && <span className="pill pill-draft">new: {c.newElements.map((e) => e.name).join(", ")}</span>}
       </header>
-      <PreviewStrip svg={c.svg} canvas={c.spec.canvas} />
+      {/* The agent's own drawing, not a local re-render: a candidate may name an
+          element the library does not have yet, and re-rendering it here would
+          show a hole where the agent drew a shape. The ground still follows the
+          theme; only the grade does not. */}
+      <PreviewStrip render={() => c.svg} canvas={c.spec.canvas} />
       <p className="rationale">{c.rationale}</p>
+      {wantsFilled && library && <FilledNote spec={c.spec} />}
       <ValidationList result={c.validation} compact />
       <ScoreSummary overall={c.overall} scores={c.scores} />
       <div className="actions">

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { intentToSpec } from "@icon-foundry/icon-ai";
-import { parseIconLanguage, serializeIconLanguage, technical } from "@icon-foundry/icon-language";
+import { parseIconLanguage, serializeIconLanguage, technical, type Box } from "@icon-foundry/icon-language";
+import { resolveSpec } from "@icon-foundry/icon-composer";
+import type { IconSpec } from "@icon-foundry/icon-spec";
 import { Library, MemoryStore } from "@icon-foundry/icon-library";
 import { auditLibrary } from "./index.js";
 
@@ -22,6 +24,21 @@ async function coherent() {
 }
 
 const ids = (findings: ReturnType<typeof auditLibrary>) => [...new Set(findings.map((f) => f.id))].sort();
+
+/**
+ * Pin one part of a compiled icon to a box of our choosing.
+ *
+ * An exception is the only way an icon's geometry can disagree with its
+ * language, and it has to carry a reason — so a test that wants a misplaced
+ * badge writes one down, exactly like a designer would.
+ */
+function pin(spec: IconSpec, index: number, move: (box: Box) => Box, why: string): IconSpec {
+  const placed = resolveSpec(spec, technical).elements;
+  const el = placed[index]!;
+  const box = move({ x: el.x, y: el.y, width: el.width ?? el.size ?? 0, height: el.height ?? el.size ?? 0 });
+  const parts = spec.composition!.parts.map((part, i) => (i === index ? { ...part, except: { box, why } } : part));
+  return { ...spec, composition: { ...spec.composition!, parts } };
+}
 
 describe("auditLibrary", () => {
   it("says nothing about a coherent set", async () => {
@@ -84,7 +101,10 @@ describe("auditLibrary", () => {
   it("finds a badge that is a different size from every other badge", async () => {
     const lib = await coherent();
     const spec = intentToSpec({ subject: "building", modifiers: ["plus"], text: "odd" }, technical);
-    const odd = { ...spec, name: "odd-badge", elements: [spec.elements[0]!, { ...spec.elements[1]!, width: 3, height: 3 }] };
+    // Geometry is not stored any more, so the way to make an icon disagree
+    // with its language is to say so: pin the badge, with a reason.
+    const odd = pin(spec, 1, (box) => ({ ...box, width: 3, height: 3 }), "deliberately undersized for this test");
+    odd.name = "odd-badge";
     await lib.saveConcept({ id: "odd", name: "Odd", aliases: [] });
     await lib.save(odd, { concept: "odd", status: "published" });
     const finding = auditLibrary(lib).find((f) => f.id === "badge-consistency")!;
@@ -96,7 +116,8 @@ describe("auditLibrary", () => {
     const lib = await coherent();
     const spec = intentToSpec({ subject: "warehouse", modifiers: ["snowflake"], text: "tight" }, technical);
     // Push the badge into the subject so the gap rule now has something to say.
-    const tight = { ...spec, name: "tight", elements: [spec.elements[0]!, { ...spec.elements[1]!, x: 7, y: 5 }] };
+    const tight = pin(spec, 1, (box) => ({ ...box, x: 7, y: 5 }), "deliberately crowded for this test");
+    tight.name = "tight";
     await lib.saveConcept({ id: "tight", name: "Tight", aliases: [] });
     await lib.save(tight, { concept: "tight", status: "published" });
     const finding = auditLibrary(lib).find((f) => f.id === "drift")!;
