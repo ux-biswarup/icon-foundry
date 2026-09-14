@@ -86,7 +86,7 @@ export function IconPreview({
       strokeLinejoin={tokens.stroke.join}
     >
       {on.grid && annotated && <GridLayer canvas={c} step={tokens.grid} u={u} zoom={zoom} />}
-      {on.keyline && annotated && <KeylineLayer tokens={tokens} u={u} />}
+      {on.keyline && annotated && <KeylineLayer keylines={icon.keylines} u={u} />}
       {on.safeArea && annotated && <SafeAreaLayer canvas={c} inset={tokens.safeArea} u={u} />}
       {on.shapes && <ShapesLayer shapes={shapes} />}
       {on.issues && annotated && <IssueLayer issues={shown} u={u} canvas={c} />}
@@ -151,15 +151,28 @@ function SafeAreaLayer({ canvas, inset, u }: { canvas: number; inset: number; u:
   );
 }
 
-/** The four optical boxes, for judging a drawing against its own sheet. */
-function KeylineLayer({ tokens, u }: { tokens: ComposedIcon["tokens"]; u: number }) {
+/**
+ * The keyline this icon was actually built against — not all four of them.
+ *
+ * Drawing the whole sheet behind every icon was the old behaviour, and it was
+ * an overlay guessing: nothing in the composed result said which box applied,
+ * so it showed them all and a circle appeared behind every square icon. The
+ * composer now reports the box each part went into, so this draws the answer
+ * instead of the question. Comparing all four is what the Keylines tab is for.
+ */
+function KeylineLayer({ keylines, u }: { keylines: ComposedIcon["keylines"]; u: number }) {
   return (
     <g className="ip-keyline" pointerEvents="none" strokeWidth={u}>
-      {Object.entries(tokens.optical).map(([shape, box]) =>
+      {keylines.map(({ shape, box, primitive }) =>
         shape === "circle" ? (
-          <circle key={shape} cx={box.x + box.width / 2} cy={box.y + box.height / 2} r={box.width / 2} />
+          <circle
+            key={primitive}
+            cx={box.x + box.width / 2}
+            cy={box.y + box.height / 2}
+            r={Math.min(box.width, box.height) / 2}
+          />
         ) : (
-          <rect key={shape} x={box.x} y={box.y} width={box.width} height={box.height} />
+          <rect key={primitive} x={box.x} y={box.y} width={box.width} height={box.height} />
         ),
       )}
     </g>

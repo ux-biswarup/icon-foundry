@@ -2,6 +2,7 @@ import type { AgentResult, Candidate } from "@icon-foundry/icon-agent";
 import type { IconStyle } from "@icon-foundry/icon-language";
 import { parseIconSpec } from "@icon-foundry/icon-spec";
 import { useEffect, useMemo, useState } from "react";
+import { IconConstruction } from "../components/IconConstruction.js";
 import { PreviewStrip } from "../components/IconSvg.js";
 import { ScoreSummary } from "../components/Scores.js";
 import { ValidationList } from "../components/ValidationList.js";
@@ -195,6 +196,52 @@ export function CreatePage() {
               />
             ))}
           </div>
+          {/*
+            * The moment a draft most wants a real canvas.
+            *
+            * Until now the only two things you could do with a candidate were
+            * accept it or ask the model again, which makes its third attempt
+            * the unit of work when the real unit is usually "that, but the bar
+            * is one step short". This is the same editor the Method tab uses,
+            * against the same rules, before anything enters the library.
+            */}
+          {focus && (
+            <section className="candidate-edit">
+              <div className="candidate-edit-head">
+                <h2>{focus.spec.name}</h2>
+                <span className="spacer" />
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void approve(focus)}
+                >
+                  Add to library
+                </button>
+              </div>
+              <IconConstruction
+                spec={focus.spec}
+                library={library}
+                onChange={(spec) => {
+                  const { validation, svg } = renderSpec(spec, library);
+                  if (!svg) return;
+                  const updated: Candidate = {
+                    ...focus,
+                    spec,
+                    svg,
+                    validation,
+                    scores: validation.scores,
+                    overall: validation.overall,
+                  };
+                  setResult((was) =>
+                    was ? { ...was, candidates: was.candidates.map((x) => (x.id === focus.id ? updated : x)) } : was,
+                  );
+                  setFocus(updated);
+                }}
+              />
+              <ValidationList result={focus.validation} />
+            </section>
+          )}
+
           <div className="refine">
             <input
               value={feedback}

@@ -11,5 +11,8 @@
   },
   "dependencies": {
     "@icon-foundry/icon-language": "workspace:*"
+  },
+  "devDependencies": {
+    "@icon-foundry/icon-renderer": "workspace:*"
   }
 }

@@ -7,6 +7,7 @@ export * from "./arcify.js";
 export * from "./snap.js";
 export * from "./clip.js";
 export * from "./recognise.js";
+export { importSvg, parseTransform, SvgImportError, type SvgImport } from "./svg-import.js";
 export { PathPrimitiveError, definePathPrimitive, type PathPrimitiveDefinition } from "./path-primitive.js";
 export { PrimitiveRegistry, builtInPrimitives, defaultRegistry } from "./registry.js";
 export * from "./shapes/index.js";

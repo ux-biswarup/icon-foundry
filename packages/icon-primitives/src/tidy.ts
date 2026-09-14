@@ -310,6 +310,96 @@ export function mergeLines(skeleton: Skeleton, tolerance: number): Skeleton {
   return compact({ ...skeleton, subpaths });
 }
 
+/**
+ * Two arcs of the same circle, drawn end to end, are one arc.
+ *
+ * The arc counterpart of `mergeLines`, and it exists for the same reason that
+ * one does: geometry arriving from elsewhere is split at points that meant
+ * something to the tool that made it and nothing here. A quarter circle exported
+ * as two eighths is the common case — it renders identically, and then every
+ * pass that asks a question about a corner gets two answers where there is one
+ * corner, and the radius handle offers two handles for one curve.
+ *
+ * The test is the shared centre, not the shared radius. Two arcs of equal radius
+ * can meet at a point and curve away from each other, and merging those would
+ * replace an S-bend with a curve nobody drew.
+ */
+export function mergeArcs(skeleton: Skeleton, tolerance: number): Skeleton {
+  const degree = degrees(skeleton);
+  const subpaths = skeleton.subpaths.map((subpath) => {
+    const segments: SkeletonSegment[] = [];
+    let index = 0;
+    while (index < subpath.segments.length) {
+      const segment = subpath.segments[index]!;
+      const next = subpath.segments[index + 1];
+      if (
+        segment.kind === "arc" &&
+        next?.kind === "arc" &&
+        // Only where nothing else joins, nobody pinned a radius, and the seam is
+        // not the point a closed subpath starts at.
+        (degree[segment.to] ?? 0) === 2 &&
+        skeleton.corners[segment.to] === undefined &&
+        !(subpath.closed && segment.to === subpath.start) &&
+        segment.sweep === next.sweep &&
+        Math.abs(segment.radius - next.radius) <= tolerance &&
+        (segment.radiusY ?? segment.radius) === (next.radiusY ?? next.radius) &&
+        (segment.rotation ?? 0) === (next.rotation ?? 0)
+      ) {
+        const from = skeleton.vertices[segmentStart(subpath, index)];
+        const seam = skeleton.vertices[segment.to];
+        const to = skeleton.vertices[next.to];
+        const a = from && seam && arcCentreOf(from, seam, segment);
+        const b = seam && to && arcCentreOf(seam, to, next);
+        if (a && b && Math.hypot(a[0] - b[0], a[1] - b[1]) <= tolerance) {
+          // The joined sweep may now exceed a half turn, which is the one thing
+          // the large-arc flag exists to say.
+          const large =
+            from && to
+              ? Math.hypot(to[0] - from[0], to[1] - from[1]) < 2 * segment.radius - 1e-9
+                ? segment.largeArc || next.largeArc || sweptFar(from, seam, to, a)
+                : false
+              : segment.largeArc || next.largeArc;
+          segments.push({ ...segment, to: next.to, largeArc: large });
+          index += 2;
+          continue;
+        }
+      }
+      segments.push(segment);
+      index += 1;
+    }
+    return { ...subpath, segments };
+  });
+  return compact({ ...skeleton, subpaths });
+}
+
+/** Centre of the circle an arc segment lies on, by the SVG spec's conversion. */
+function arcCentreOf(from: Point, to: Point, segment: SkeletonSegment & { kind: "arc" }): Point | undefined {
+  const r = Math.abs(segment.radius);
+  if (r < 1e-9) return undefined;
+  const dx = (from[0] - to[0]) / 2;
+  const dy = (from[1] - to[1]) / 2;
+  const lambda = (dx * dx + dy * dy) / (r * r);
+  const scale = lambda > 1 ? Math.sqrt(lambda) : 1;
+  const radius = r * scale;
+  const factor =
+    Math.sqrt(Math.max(0, radius * radius - (dx * dx + dy * dy))) * (segment.largeArc === segment.sweep ? -1 : 1);
+  const length = Math.hypot(dx, dy);
+  if (length < 1e-12) return undefined;
+  return [
+    (from[0] + to[0]) / 2 + (factor * dy) / length,
+    (from[1] + to[1]) / 2 - (factor * dx) / length,
+  ];
+}
+
+/** Does the path from `from` through `seam` to `to` cover more than half the circle? */
+function sweptFar(from: Point, seam: Point | undefined, to: Point, centre: Point): boolean {
+  if (!seam) return false;
+  const at = (p: Point) => Math.atan2(p[1] - centre[1], p[0] - centre[0]);
+  const span = (a: number, b: number) => ((b - a) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+  const total = span(at(from), at(seam)) + span(at(seam), at(to));
+  return total > Math.PI;
+}
+
 function sameDirection(a: number | undefined, b: number | undefined, tolerance: number): boolean {
   if (a === undefined || b === undefined) return false;
   // The signed difference folded into [-180, 180), then its size: 0 is the same
@@ -431,6 +521,7 @@ const PASSES: Array<[string, Pass]> = [
   ["weldVertices", (s, o) => weldVertices(s, o.weld)],
   ["removeTinySegments", (s, o) => removeTinySegments(s, o.minSegment)],
   ["mergeLines", (s, o) => mergeLines(s, o.collinear)],
+  ["mergeArcs", (s, o) => mergeArcs(s, o.weld)],
   ["smartClose", (s, o) => smartClose(s, o.weld)],
   ["mergePaths", (s) => mergePaths(s)],
   ["removeBackdrop", (s, o) => removeBackdrop(s, o.canvas, o.weld)],

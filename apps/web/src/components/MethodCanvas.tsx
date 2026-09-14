@@ -1,26 +1,28 @@
 import { previewElementChange } from "@icon-foundry/icon-audit";
 import { slashAngle, slashGap } from "@icon-foundry/icon-composer";
-import { cornerRadiusFor, type IconLanguage } from "@icon-foundry/icon-language";
+import type { Box, IconLanguage, OpticalShape } from "@icon-foundry/icon-language";
 import type { ElementRecord, Library } from "@icon-foundry/icon-library";
 import {
   arcify,
-  corners as jointsOf,
-  isAllowedAngle,
-  moveVertex,
-  segmentHeading,
-  segmentStart,
-  skeletonFromPathData,
-  snapToConstruction,
-  tidy,
   bandThrough,
   clipOutsideBand,
-  type Point,
+  isAllowedAngle,
+  importSvg,
+  recognise,
+  segmentHeading,
+  skeletonFromPathData,
+  tidy,
   type PrimitiveRegistry,
   type Skeleton,
 } from "@icon-foundry/icon-primitives";
 import { shapeToPathData, skeletonPaths, skeletonToPathData } from "@icon-foundry/icon-renderer";
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { IDENTITY, invert, mapSkeleton, placementFor, type Placement } from "../lib/method-geometry.js";
+import { useConstruction } from "../lib/useConstruction.js";
+import { ConstructionStage, DEFAULT_LAYERS, LayerToggles } from "./ConstructionStage.js";
 import { IconSvg } from "./IconSvg.js";
+import { MethodCode } from "./MethodCode.js";
 import { Swatch } from "./Swatch.js";
 
 /**
@@ -29,14 +31,22 @@ import { Swatch } from "./Swatch.js";
  * The third question a set has to answer. Parts asks whether these look like the
  * work of one hand and Keylines whether they are the same size; neither can show
  * whether they are *built* the same way, because construction is invisible once
- * a shape is drawn. Here it is the only thing on screen: the skeleton before its
- * corners are rounded, every segment coloured by whether its angle is one the
- * language allows, and every joint labelled with the radius the ramp gives it.
+ * a shape is drawn. Here it is the only thing on screen.
+ *
+ * It draws on the icon canvas rather than in the part's own box, which is the
+ * decision everything else follows from. Every rule worth seeing while building
+ * — the grid step, the safe area, the four optical boxes, the corner radius —
+ * is stated in canvas units, so working anywhere else meant rescaling each of
+ * them at the point of use and hoping nobody forgot one. On the canvas they are
+ * simply true, and the keyline sheet's backdrop can sit under the editor
+ * instead of being a separate argument about the same drawing.
  *
  * Editing is direct because the skeleton makes it cheap. Dragging a vertex of a
  * polyline is tractable; dragging a control point of a cubic whose neighbours
  * must stay tangent is not, which is why the tool this borrows from has to
- * repair geometry instead of letting anyone shape it.
+ * repair geometry instead of letting anyone shape it. That same difference is
+ * why a whole category of its overlays is missing here: vertices are shared, so
+ * "these two endpoints nearly meet" is not a fault this representation can hold.
  */
 
 export interface MethodProps {
@@ -50,7 +60,7 @@ export interface MethodProps {
   onAction: (fn: (lib: Library) => Promise<unknown>) => Promise<unknown>;
 }
 
-const STAGE = 460;
+const PRECISION = 4;
 
 /** The part's geometry as one skeleton, or undefined when it has none to show. */
 function skeletonFor(record: ElementRecord | undefined, registry: PrimitiveRegistry, name: string | undefined) {
@@ -64,83 +74,226 @@ function skeletonFor(record: ElementRecord | undefined, registry: PrimitiveRegis
   return data.length > 0 ? skeletonFromPathData(data) : undefined;
 }
 
+function boundsOf(skeleton: Skeleton): Box {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of skeleton.vertices) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  if (!Number.isFinite(minX)) return { x: 0, y: 0, width: 1, height: 1 };
+  return { x: minX, y: minY, width: Math.max(maxX - minX, 1e-6), height: Math.max(maxY - minY, 1e-6) };
+}
+
 export function MethodCanvas({ library, language, registry, size, selected, onSelect, onAction }: MethodProps) {
   const tokens = language.sizes[size] ?? language.sizes[language.defaultCanvas]!;
+  const canvas = tokens.canvas;
   const elements = library.elements();
   const record = elements.find((e) => e.name === selected);
   const editable = record !== undefined;
 
   const [draft, setDraft] = useState<Skeleton>();
+  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
   const [showRounded, setShowRounded] = useState(false);
-  const [dragging, setDragging] = useState<number>();
-  const [free, setFree] = useState(false);
+  const [layers, setLayers] = useState(DEFAULT_LAYERS);
+  const [typing, setTyping] = useState<string>();
+  const [asSvg, setAsSvg] = useState(false);
+  /** Attributes a pasted SVG had an opinion about that the language owns. */
+  const [taken, setTaken] = useState<string[]>([]);
+  const [codeError, setCodeError] = useState<string>();
   const [error, setError] = useState<string>();
-  const stage = useRef<SVGSVGElement>(null);
 
-  const base = useMemo(() => skeletonFor(record, registry, selected), [record, registry, selected]);
-  const skeleton = draft ?? base;
-  const dirty = draft !== undefined;
-
-  // The natural box a part is drawn in, which is what the canvas shows.
   const primitive = selected && registry.has(selected) ? registry.get(selected) : undefined;
   // A part may declare that its concept needs angles the grammar does not allow
   // — a triangle, an isometric box, a snowflake's 60° symmetry. Marking those
   // segments as mistakes would be the tab contradicting the language.
   const freeAngles = primitive?.freeAngles === true;
-  const box = record?.box ?? primitive?.box;
-  const extent = Math.max(box?.width ?? tokens.canvas, box?.height ?? tokens.canvas, 1);
-  const unit = STAGE / extent;
-  // A radius stated in canvas units has to be read at the scale the part is
-  // drawn at, the same correction the composer applies.
-  const localRadius = tokens.cornerRadius * (extent / tokens.canvas);
+
+  /* ---------------------------------------------------------------- */
+  /* The drawing, in canvas units                                      */
+  /* ---------------------------------------------------------------- */
+
+  const natural = useMemo(() => skeletonFor(record, registry, selected), [record, registry, selected]);
+
+  /**
+   * Where this part sits on the canvas.
+   *
+   * Deliberately the composer's own answer and not a similar one. `compose()`
+   * places a lone element in the keyline box its optical shape names, scaled
+   * uniformly to fit and centred in the slack — so reproducing that here is
+   * what makes the safe area and the optical boxes under the drawing *true*
+   * rather than decorative. A placement of our own devising would put the
+   * drawing somewhere the icon never goes, and then every keyline it is
+   * measured against would be measuring the wrong thing.
+   *
+   * The natural box is anchored at the origin because that is how
+   * `definePathPrimitive` derives one, declared or not. Using the drawing's own
+   * bounds instead would also make the placement depend on the geometry, and a
+   * part that rescaled its own canvas as you dragged it would be unusable.
+   */
+  const keyline = useMemo(() => {
+    const shape = (primitive?.opticalShape ?? record?.opticalShape ?? "square") as OpticalShape;
+    return { shape, box: tokens.optical[shape] };
+  }, [primitive, record, tokens]);
+
+  const placement: Placement = useMemo(() => {
+    if (!natural) return IDENTITY;
+    const declared = primitive?.box ?? record?.box;
+    const from: Box = declared
+      ? { x: 0, y: 0, width: declared.width, height: declared.height }
+      : boundsOf(natural);
+    return placementFor(from, keyline.box);
+  }, [natural, record, primitive, keyline]);
+
+  const base = useMemo(() => (natural ? mapSkeleton(natural, placement) : undefined), [natural, placement]);
+  const skeleton = draft ?? base;
+  const dirty = draft !== undefined;
 
   const rounded = useMemo(
     () =>
       skeleton
         ? arcify(skeleton, {
-            cornerRadius: localRadius,
+            cornerRadius: tokens.cornerRadius,
             corners: language.construction.corners,
-            ...(language.construction.cornerSnap && { snap: true, grid: tokens.grid * (extent / tokens.canvas) }),
+            ...(language.construction.cornerSnap && { snap: true, grid: tokens.grid }),
           })
         : undefined,
-    [skeleton, localRadius, language.construction, tokens.grid, extent, tokens.canvas],
+    [skeleton, tokens, language.construction],
   );
 
-  const shown = showRounded ? rounded : skeleton;
-  const joints = useMemo(() => (skeleton ? jointsOf(skeleton) : []), [skeleton]);
+  const shown = (showRounded ? rounded : skeleton) ?? skeleton;
+
+  /* ---------------------------------------------------------------- */
+  /* Measurements                                                      */
+  /* ---------------------------------------------------------------- */
+
+  const measured = useConstruction(skeleton, shown, language, tokens, {
+    freeAngles,
+    showRounded,
+    faults: layers.faults,
+  });
+  const { joints, fillets, misses, gaps } = measured;
+
+  /**
+   * Whether this drawing turns out to be something the set already owns.
+   *
+   * An offer rather than an observation: a drawing recognised as a primitive
+   * can be *replaced* by it, and then it carries that primitive's construction
+   * traits and re-renders when the language moves.
+   */
+  const recognition = useMemo(() => {
+    if (!skeleton || !editable) return undefined;
+    try {
+      return recognise(skeleton, registry, { grid: tokens.grid });
+    } catch {
+      return undefined;
+    }
+  }, [skeleton, registry, tokens.grid, editable]);
+
+  /* ---------------------------------------------------------------- */
+  /* Writing back                                                      */
+  /* ---------------------------------------------------------------- */
+
+  /** The draft returned to the part's own box, which is what gets stored. */
+  const stored = useMemo(
+    () => (draft ? mapSkeleton(draft, invert(placement)) : undefined),
+    [draft, placement],
+  );
+
+  /**
+   * What the pane shows.
+   *
+   * Path data by default, because that is what is stored — and an editor whose
+   * text says something other than the file says is an editor you cannot trust
+   * to tell you what you have. The SVG view is the same geometry wearing the
+   * language's own attributes, which is what makes it a useful thing to copy
+   * out: paste it anywhere and it is already in this language.
+   */
+  const code = useMemo(() => {
+    if (typing !== undefined) return typing;
+    const source = stored ?? natural;
+    if (!source) return "";
+    const paths = skeletonPaths(source, PRECISION);
+    if (!asSvg) return paths.join("\n");
+    const box = primitive?.box ?? record?.box ?? { width: canvas, height: canvas };
+    return [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${box.width}" height="${box.height}"`,
+      `     viewBox="0 0 ${box.width} ${box.height}" fill="none" stroke="currentColor"`,
+      `     stroke-width="${tokens.stroke.width}" stroke-linecap="${tokens.stroke.cap}" stroke-linejoin="${tokens.stroke.join}">`,
+      ...paths.map((d) => `  <path d="${d}" />`),
+      "</svg>",
+    ].join("\n");
+  }, [typing, stored, natural, asSvg, primitive, record, canvas, tokens]);
 
   const preview = useMemo(() => {
-    if (!record || !draft) return undefined;
+    if (!record || !stored) return undefined;
     try {
-      const next = { ...record, outline: skeletonPaths(draft, 4) };
+      const next = { ...record, outline: skeletonPaths(stored, PRECISION) };
       return { next, impacts: previewElementChange(library, next) };
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) };
     }
-  }, [record, draft, library]);
+  }, [record, stored, library]);
 
-  const toCanvas = (event: ReactPointerEvent): Point | undefined => {
-    const rect = stage.current?.getBoundingClientRect();
-    if (!rect) return undefined;
-    return [((event.clientX - rect.left) / rect.width) * extent, ((event.clientY - rect.top) / rect.height) * extent];
+  /* ---------------------------------------------------------------- */
+  /* Selection                                                         */
+  /* ---------------------------------------------------------------- */
+
+  const fromCode = (ids: string[], additive: boolean) => {
+    setPicked(additive ? new Set([...picked, ...ids]) : new Set(ids));
   };
 
-  const onMove = (event: ReactPointerEvent) => {
-    if (dragging === undefined || !skeleton || !editable) return;
-    const raw = toCanvas(event);
-    if (!raw) return;
-    const neighbours = neighboursOf(skeleton, dragging);
-    const { point } = snapToConstruction(raw, neighbours, {
-      grid: tokens.grid * (extent / tokens.canvas),
-      angles: language.grammar.angles,
-      free: free || event.altKey,
-    });
-    setDraft(moveVertex(skeleton, dragging, point));
-  };
+  // A selection is a set of segment ids, and every action that changes the
+  // drawing's shape can renumber them. Holding on to a stale one would let a
+  // later delete remove something the designer never picked.
+  useEffect(() => setPicked(new Set()), [selected]);
+
+  /* ---------------------------------------------------------------- */
+  /* Actions                                                           */
+  /* ---------------------------------------------------------------- */
 
   const act = (fn: (s: Skeleton) => Skeleton) => {
     if (!skeleton) return;
+    setTyping(undefined);
+    setCodeError(undefined);
     setDraft(fn(skeleton));
+  };
+
+  /**
+   * Take an edit, in whichever of the two languages it is written in.
+   *
+   * An `<svg>` is detected rather than switched to, because the common case is
+   * a paste: somebody copies an icon out of Figma or off lucide.dev, drops it
+   * in, and expects it to appear. Asking them to flip a toggle first would make
+   * the feature something you have to know about.
+   *
+   * What comes in is geometry and nothing else. Any `stroke-width`,
+   * `stroke-linecap` or colour on the pasted markup is reported and dropped —
+   * those belong to the language, and a paste that quietly brought a 2px stroke
+   * into a 1.5px set would be precisely the failure this project exists to
+   * prevent.
+   */
+  const onCode = (next: string) => {
+    setTyping(next);
+    try {
+      let paths: string[];
+      if (/<\s*svg[\s>]/i.test(next)) {
+        const brought = importSvg(next, shapeToPathData, PRECISION);
+        paths = brought.paths;
+        setTaken(brought.ignored.map((i) => `${i.name}="${i.value}"`));
+      } else {
+        paths = next.split("\n").filter((line) => line.trim().length > 0);
+        setTaken([]);
+      }
+      setDraft(mapSkeleton(skeletonFromPathData(paths), placement));
+      setCodeError(undefined);
+    } catch (e) {
+      setCodeError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   /**
@@ -153,7 +306,7 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
    * which then behaves like anything else you have drawn.
    */
   const fork = async () => {
-    if (!skeleton || !selected || !primitive) return;
+    if (!natural || !selected || !primitive) return;
     const taken = (name: string) => registry.has(name) || elements.some((e) => e.name === name);
     let name = `${selected}-custom`;
     for (let n = 2; taken(name); n++) name = `${selected}-custom-${n}`;
@@ -166,7 +319,7 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           keywords: [...primitive.keywords],
           opticalShape: primitive.opticalShape,
           ...(primitive.freeAngles === true && { freeAngles: true }),
-          outline: skeletonPaths(skeleton, 4),
+          outline: skeletonPaths(natural, PRECISION),
         }),
       );
       setDraft(undefined);
@@ -176,6 +329,35 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
       setError(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const revert = () => {
+    setDraft(undefined);
+    setTyping(undefined);
+    setCodeError(undefined);
+    setError(undefined);
+    setTaken([]);
+    setPicked(new Set());
+  };
+
+  const save = () => {
+    if (!preview || "error" in preview || !preview.next) return;
+    void onAction((lib) => lib.saveElement(preview.next))
+      .then(() => {
+        revert();
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  };
+
+  /* ---------------------------------------------------------------- */
+
+  const facts = skeleton
+    ? {
+        joints: joints.length,
+        off: freeAngles ? "declared free" : String(offAngleCount(skeleton, language)),
+        curves: skeleton.subpaths.reduce((n, s) => n + s.segments.filter((x) => x.kind === "cubic").length, 0),
+        stated: Object.keys(skeleton.corners).length,
+      }
+    : undefined;
 
   return (
     <div className="method-canvas">
@@ -218,7 +400,7 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           className="chip"
           disabled={!editable || !skeleton}
           title="Weld loose ends, put lines on their true crossings, drop what is too small to see"
-          onClick={() => act((s) => tidy(s, { grid: tokens.grid * (extent / tokens.canvas), canvas: extent }))}
+          onClick={() => act((s) => tidy(s, { grid: tokens.grid, canvas }))}
         >
           Tidy
         </button>
@@ -229,9 +411,9 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           onClick={() =>
             act((s) =>
               arcify(s, {
-                cornerRadius: localRadius,
+                cornerRadius: tokens.cornerRadius,
                 corners: language.construction.corners,
-                ...(language.construction.cornerSnap && { snap: true, grid: tokens.grid * (extent / tokens.canvas) }),
+                ...(language.construction.cornerSnap && { snap: true, grid: tokens.grid }),
               }),
             )
           }
@@ -243,16 +425,7 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           disabled={!editable || !skeleton}
           title="Cut the slash through it, the way an -off variant is made"
           onClick={() =>
-            act((sk) =>
-              clipOutsideBand(
-                sk,
-                bandThrough(
-                  [extent / 2, extent / 2],
-                  slashAngle(language),
-                  slashGap(tokens) * (extent / tokens.canvas),
-                ),
-              ),
-            )
+            act((s) => clipOutsideBand(s, bandThrough([canvas / 2, canvas / 2], slashAngle(language), slashGap(tokens))))
           }
         >
           Offify
@@ -266,27 +439,17 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
         {freeAngles && <span className="muted small-text">declares free angles</span>}
         {dirty && (
           <>
-            <button className="chip" onClick={() => setDraft(undefined)}>
+            <button className="chip" onClick={revert}>
               Revert
             </button>
-            <button
-              className="chip primary"
-              disabled={!preview || "error" in preview}
-              onClick={() => {
-                if (!preview || "error" in preview || !preview.next) return;
-                void onAction((lib) => lib.saveElement(preview.next))
-                  .then(() => {
-                    setDraft(undefined);
-                    setError(undefined);
-                  })
-                  .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-              }}
-            >
+            <button className="chip primary" disabled={!preview || "error" in preview} onClick={save}>
               Save
             </button>
           </>
         )}
       </div>
+
+      <LayerToggles layers={layers} onChange={setLayers} />
 
       {!skeleton && (
         <p className="muted empty">
@@ -297,113 +460,64 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
 
       {skeleton && shown && (
         <div className="method-stage">
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: a drawing surface
-              has no keyboard equivalent; every vertex on it is a real button. */}
-          <svg
-            ref={stage}
-            className="method-svg"
-            width={STAGE}
-            height={STAGE}
-            viewBox={`0 0 ${extent} ${extent}`}
-            onPointerMove={onMove}
-            onPointerUp={(e) => {
-              stage.current?.releasePointerCapture(e.pointerId);
-              setDragging(undefined);
+          <ConstructionStage
+            skeleton={skeleton}
+            shown={shown}
+            onChange={(next) => {
+              setTyping(undefined);
+              setCodeError(undefined);
+              setDraft(next);
             }}
-            onLostPointerCapture={() => setDragging(undefined)}
-          >
-            <Grid extent={extent} step={tokens.grid * (extent / tokens.canvas)} />
-
-            {/* Every segment, coloured by whether its direction is one the
-                language allows. An off-angle line is the mistake this whole tab
-                exists to make visible. */}
-            {shown.subpaths.flatMap((subpath, s) =>
-              subpath.segments.map((segment, i) => {
-                const from = shown.vertices[segmentStart(subpath, i)]!;
-                const to = shown.vertices[segment.to]!;
-                const heading = segmentHeading(shown, subpath, i);
-                const off =
-                  !freeAngles &&
-                  segment.kind === "line" &&
-                  heading !== undefined &&
-                  !isAllowedAngle(heading, language.grammar.angles, language.grammar.angleTolerance);
-                const d =
-                  segment.kind === "arc"
-                    ? `M${from[0]} ${from[1]}A${segment.radius} ${segment.radiusY ?? segment.radius} 0 ${segment.largeArc ? 1 : 0} ${segment.sweep ? 1 : 0} ${to[0]} ${to[1]}`
-                    : `M${from[0]} ${from[1]}L${to[0]} ${to[1]}`;
-                return (
-                  <path
-                    key={`${s}-${i}`}
-                    d={d}
-                    className={`ms-seg ${off ? "off" : ""} ${segment.kind}`}
-                    strokeWidth={1.5 / unit}
-                  />
-                );
-              }),
-            )}
-
-            {/* The radius each joint is getting, from the ramp. */}
-            {!showRounded &&
-              joints.map((joint) => {
-                const at = skeleton.vertices[joint.vertex]!;
-                const radius = skeleton.corners[joint.vertex] ?? cornerRadiusFor(joint.angle, language.construction.corners, localRadius);
-                return (
-                  <text
-                    key={`label-${joint.subpath}-${joint.joint}`}
-                    className="ms-label"
-                    x={at[0]}
-                    y={at[1] - 6 / unit}
-                    fontSize={9 / unit}
-                  >
-                    {Math.round(joint.angle)}° · r{+radius.toFixed(2)}
-                  </text>
-                );
-              })}
-
-            {!showRounded &&
-              skeleton.vertices.map((vertex, i) => (
-                <circle
-                  key={i}
-                  className={`ms-vertex ${dragging === i ? "on" : ""} ${editable ? "" : "locked"}`}
-                  cx={vertex[0]}
-                  cy={vertex[1]}
-                  r={4 / unit}
-                  onPointerDown={(e) => {
-                    if (!editable) return;
-                    // Captured by the stage rather than by the vertex: the move
-                    // handler is on the stage, and a drag that runs past the edge
-                    // of it should keep going rather than being abandoned there.
-                    stage.current?.setPointerCapture(e.pointerId);
-                    setFree(e.altKey);
-                    setDragging(i);
-                  }}
-                />
-              ))}
-          </svg>
+            language={language}
+            tokens={tokens}
+            measured={measured}
+            keyline={keyline}
+            freeAngles={freeAngles}
+            editable={editable}
+            showRounded={showRounded}
+            layers={layers}
+            picked={picked}
+            onPick={setPicked}
+            recognition={recognition}
+          />
 
           <div className="method-side">
             <Swatch
               tone="surface"
               render={() => (
-                <IconSvg
-                  svg={drawAt(rounded ?? skeleton, tokens.canvas, extent, tokens.stroke.width)}
-                  size={tokens.canvas}
-                />
+                <IconSvg svg={drawAt(rounded ?? skeleton, canvas, tokens.stroke.width)} size={canvas} />
               )}
             />
-            <p className="muted small-text">true size · {tokens.canvas}px</p>
+            <p className="muted small-text">true size · {canvas}px</p>
             <dl className="method-facts">
               <dt>Joints</dt>
-              <dd>{joints.length}</dd>
+              <dd>{facts?.joints}</dd>
               <dt>Off the angle set</dt>
-              <dd>{freeAngles ? "declared free" : offAngleCount(skeleton, language)}</dd>
+              <dd>{facts?.off}</dd>
               <dt>Curves drawn by hand</dt>
-              <dd>{handCurves(skeleton)}</dd>
+              <dd>{facts?.curves}</dd>
+              <dt>Corners already cut</dt>
+              <dd>{fillets.length}</dd>
+              <dt>Radii stated by hand</dt>
+              <dd>{facts?.stated}</dd>
+              <dt>Loose ends near ink</dt>
+              <dd>{misses.length}</dd>
+              <dt>Gaps under the minimum</dt>
+              <dd>{gaps.length}</dd>
             </dl>
+
+            {recognition && (
+              <p className="muted small-text">
+                This is a <strong>{recognition.primitive}</strong>, within {+recognition.deviation.toFixed(2)} units.
+                Composing it from the primitive would keep it in step with the language.
+              </p>
+            )}
+
             {editable ? (
               <p className="muted small-text">
-                Drag a vertex to move it. It snaps to the language's angles first and the grid second; hold ⌥ to leave
-                both.
+                Drag a segment to move it, a point to move that point, the small ring at a corner to state its radius.
+                Shift adds to the selection, right-click acts on it. Everything snaps to a point first, the language's
+                angles second, the grid third; hold ⌥ to leave all three.
               </p>
             ) : (
               <p className="locked-note">
@@ -421,37 +535,22 @@ export function MethodCanvas({ library, language, registry, size, selected, onSe
           </div>
         </div>
       )}
+
+      {skeleton && (
+        <MethodCode
+          value={code}
+          onChange={onCode}
+          selected={picked}
+          onSelect={fromCode}
+          error={codeError}
+          readOnly={!editable}
+          asSvg={asSvg}
+          onFormat={setAsSvg}
+          ignored={taken}
+        />
+      )}
     </div>
   );
-}
-
-function Grid({ extent, step }: { extent: number; step: number }) {
-  if (step <= 0) return null;
-  const lines: number[] = [];
-  for (let at = 0; at <= extent + 1e-9; at += step) lines.push(at);
-  return (
-    <g className="ms-grid">
-      {lines.map((at) => (
-        <path key={`v${at}`} d={`M${at} 0V${extent}`} strokeWidth={0.02 * (extent / 24)} />
-      ))}
-      {lines.map((at) => (
-        <path key={`h${at}`} d={`M0 ${at}H${extent}`} strokeWidth={0.02 * (extent / 24)} />
-      ))}
-    </g>
-  );
-}
-
-/** Vertices attached to this one by a segment: what a drag has to stay square to. */
-function neighboursOf(skeleton: Skeleton, vertex: number): Point[] {
-  const out: Point[] = [];
-  for (const subpath of skeleton.subpaths) {
-    subpath.segments.forEach((segment, i) => {
-      const from = segmentStart(subpath, i);
-      if (from === vertex && skeleton.vertices[segment.to]) out.push(skeleton.vertices[segment.to]!);
-      if (segment.to === vertex && skeleton.vertices[from]) out.push(skeleton.vertices[from]!);
-    });
-  }
-  return out;
 }
 
 function offAngleCount(skeleton: Skeleton, language: IconLanguage): number {
@@ -460,38 +559,20 @@ function offAngleCount(skeleton: Skeleton, language: IconLanguage): number {
     subpath.segments.forEach((segment, i) => {
       if (segment.kind !== "line") return;
       const heading = segmentHeading(skeleton, subpath, i);
-      if (heading !== undefined && !isAllowedAngle(heading, language.grammar.angles, language.grammar.angleTolerance)) count++;
+      if (heading !== undefined && !isAllowedAngle(heading, language.grammar.angles, language.grammar.angleTolerance))
+        count++;
     });
   }
   return count;
 }
 
-function handCurves(skeleton: Skeleton): number {
-  return skeleton.subpaths.reduce(
-    (total, subpath) => total + subpath.segments.filter((s) => s.kind === "cubic").length,
-    0,
-  );
-}
-
 /**
- * The part at true size: the drawing scaled from its natural box onto the
- * canvas, so the row under the editor says what ships rather than what is being
- * inspected.
+ * The part at true size.
+ *
+ * No scaling left to do: the editor already works in canvas units, so the row
+ * under it says what ships because it is drawing the same numbers.
  */
-function drawAt(skeleton: Skeleton, canvas: number, extent: number, stroke: number): string {
-  const factor = canvas / extent;
-  const scaled: Skeleton = {
-    ...skeleton,
-    vertices: skeleton.vertices.map(([x, y]) => [x * factor, y * factor] as Point),
-    subpaths: skeleton.subpaths.map((subpath) => ({
-      ...subpath,
-      // Radii are lengths too, and scaling the points without them turns every
-      // corner into an arc that no longer touches its own edges.
-      segments: subpath.segments.map((segment) =>
-        segment.kind === "arc" ? { ...segment, radius: segment.radius * factor } : segment,
-      ),
-    })),
-  };
-  const d = skeletonToPathData(scaled, 4);
+function drawAt(skeleton: Skeleton, canvas: number, stroke: number): string {
+  const d = skeletonToPathData(skeleton, PRECISION);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${canvas} ${canvas}" width="${canvas}" height="${canvas}" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
 }

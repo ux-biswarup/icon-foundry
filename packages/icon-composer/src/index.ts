@@ -3,10 +3,12 @@ import {
   hasSize,
   nearestTokens,
   resolveTokens,
+  type Box,
   type Construction,
   type IconLanguage,
   type IconStyle,
   type SizeTokens,
+  type OpticalShape,
   type StrokeCap,
   type StrokeJoin,
 } from "@icon-foundry/icon-language";
@@ -52,8 +54,34 @@ export interface ComposedShape {
   primitive: string;
   /** The source primitive opted out of the language's construction angles. */
   freeAngles: boolean;
+  /**
+   * Which of the four keyline boxes this shape's part is sized against.
+   *
+   * Absent for freeform path geometry, which has no primitive and therefore no
+   * optical shape — it was drawn at a size rather than fitted to one.
+   */
+  opticalShape?: OpticalShape;
+  /** The box the element was actually fitted into. */
+  box?: Box;
   /** JSON-pointer-like path to the source element, e.g. `elements[1].children[0]`. */
   source: string;
+}
+
+/**
+ * A keyline this icon was actually built against.
+ *
+ * Reported rather than inferred. The composer has always chosen one — `keyline()`
+ * in `layout.ts` is `tokens.optical[primitive.opticalShape]` — and then thrown
+ * the choice away, which left every overlay downstream with no way to know
+ * which of the four boxes applied. Drawing all four was what "I don't know"
+ * looked like, and it is why a circle keyline appeared behind square icons.
+ */
+export interface ComposedKeyline {
+  shape: OpticalShape;
+  /** The box the part went into, which for a lone subject is the keyline box
+   *  and for a badge is the smaller box the layout gave it. */
+  box: Box;
+  primitive: string;
 }
 
 export interface ComposedIcon {
@@ -66,6 +94,14 @@ export interface ComposedIcon {
   /** How this language builds a part. Carried so the renderer can compensate. */
   construction: Construction;
   shapes: ComposedShape[];
+  /**
+   * The keylines in play, in the order their parts were composed.
+   *
+   * One entry per distinct box, so a lone part yields exactly one and a
+   * subject-with-badge yields two. Empty for an icon made only of freeform
+   * geometry, which is the honest answer: it was never sized against a keyline.
+   */
+  keylines: ComposedKeyline[];
   /** Number of leaf (primitive or path) elements in the spec. */
   elementCount: number;
 }
@@ -229,10 +265,24 @@ function composeElement(
       color,
       primitive: primitive.name,
       freeAngles: primitive.freeAngles === true,
+      opticalShape: primitive.opticalShape,
+      box,
       source,
     });
   }
   return 1;
+}
+
+/** The distinct keylines a set of composed shapes went into. */
+function keylinesOf(shapes: readonly ComposedShape[]): ComposedKeyline[] {
+  const out: ComposedKeyline[] = [];
+  for (const item of shapes) {
+    if (!item.opticalShape || !item.box) continue;
+    const { x, y, width, height } = item.box;
+    if (out.some((k) => k.box.x === x && k.box.y === y && k.box.width === width && k.box.height === height)) continue;
+    out.push({ shape: item.opticalShape, box: { x, y, width, height }, primitive: item.primitive });
+  }
+  return out;
 }
 
 /**
@@ -269,6 +319,7 @@ export function compose(spec: IconSpec, language: IconLanguage, options: Compose
     tokens,
     construction: language.construction,
     shapes,
+    keylines: keylinesOf(shapes),
     elementCount,
   };
 }

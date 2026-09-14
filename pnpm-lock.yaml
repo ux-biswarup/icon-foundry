@@ -276,6 +276,10 @@ importers:
       '@icon-foundry/icon-language':
         specifier: workspace:*
         version: link:../icon-language
+    devDependencies:
+      '@icon-foundry/icon-renderer':
+        specifier: workspace:*
+        version: link:../icon-renderer
 
   packages/icon-renderer:
     dependencies:

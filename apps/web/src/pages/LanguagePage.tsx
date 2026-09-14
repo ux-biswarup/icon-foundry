@@ -38,6 +38,7 @@ import { ConstructionPanel } from "../components/ConstructionPanel.js";
 import { ExemplarBoard } from "../components/ExemplarBoard.js";
 import { HandChat } from "../components/HandChat.js";
 import { PartsCanvas } from "../components/PartsCanvas.js";
+import { AngleFan } from "../components/AngleFan.js";
 import { MethodCanvas } from "../components/MethodCanvas.js";
 import { CornerRamp } from "../components/CornerRamp.js";
 import { KeylineSheet } from "../components/KeylineSheet.js";
@@ -710,9 +711,7 @@ export function LanguagePage() {
             <>
               <section>
                 <h2>Personality</h2>
-                <p className="muted small-text">
-                  The input. Everything below is either derived from these or stated over the top of them.
-                </p>
+                <p className="muted small-text">The input. Everything below follows from these.</p>
                 {derived && (
                   <DerivationPanel
                     derived={derived}
@@ -728,17 +727,19 @@ export function LanguagePage() {
 
               <section>
                 <h2>Line angles</h2>
-                <p className="muted small-text">
-                  What a segment is allowed to run at. The editor pulls a dragged vertex onto these before it
-                  considers the grid, and the validator flags anything drawn off them.
-                </p>
+                <p className="muted small-text">Where a segment may point.</p>
                 <div className="angle-sets">
                   {ANGLE_SETS.map((set) => {
                     const on = JSON.stringify(grammar.angles) === JSON.stringify(set.angles);
                     return (
-                      <button key={set.label} className={on ? "on" : ""} onClick={() => patchGrammar({ angles: set.angles })}>
+                      <button
+                        key={set.label}
+                        className={on ? "on" : ""}
+                        title={set.note}
+                        onClick={() => patchGrammar({ angles: set.angles })}
+                      >
+                        <AngleFan angles={set.angles} label={set.label} />
                         <strong>{set.label}</strong>
-                        <span className="muted small-text">{set.note}</span>
                       </button>
                     );
                   })}
@@ -747,10 +748,7 @@ export function LanguagePage() {
 
               <section>
                 <h2>Corners</h2>
-                <p className="muted small-text">
-                  Straight segments are drawn; roundness is the language's. A gentle bend can take a generous radius,
-                  and the same radius on a sharp point eats the point — so it is a ramp, not a number.
-                </p>
+                <p className="muted small-text">Sharper corners round less.</p>
                 <CornerRamp
                   corners={preview.construction.corners}
                   tokens={preview.sizes[size] ?? preview.sizes[preview.defaultCanvas]!}

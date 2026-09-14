@@ -3,6 +3,7 @@ import { defaultRegistry } from "./registry.js";
 import { recognise } from "./recognise.js";
 import { skeletonFromCommands, skeletonFromPathData, skeletonToCommands, type Skeleton } from "./skeleton.js";
 import {
+  mergeArcs,
   fixDots,
   mergeLines,
   mergePaths,
@@ -209,5 +210,53 @@ describe("recognise", () => {
     const wonky = skeletonFromPathData("M2 2 L18 2.4 L18 18 L2 18 Z");
     expect(recognise(wonky, registry, { tolerance: 1 })?.primitive).toBe("square");
     expect(recognise(wonky, registry, { tolerance: 0.05 })).toBeUndefined();
+  });
+});
+
+describe("mergeArcs", () => {
+  /** A quarter circle centred on the origin, split into two eighths. */
+  const halves = () => skeletonFromPathData(["M10 0 A10 10 0 0 1 7.0711 7.0711 A10 10 0 0 1 0 10"]);
+
+  it("makes two arcs of one circle into one arc", () => {
+    const merged = mergeArcs(halves(), 0.05);
+    expect(merged.subpaths[0]?.segments).toHaveLength(1);
+    // Same circle, same ends: the drawing did not change, only its description.
+    const only = merged.subpaths[0]?.segments[0];
+    expect(only?.kind === "arc" && only.radius).toBeCloseTo(10, 3);
+    expect(merged.vertices[merged.subpaths[0]!.segments[0]!.to]?.[0]).toBeCloseTo(0, 3);
+  });
+
+  it("leaves an S-bend alone, because equal radii are not a shared circle", () => {
+    // Two arcs of the same radius that curve away from each other. Merging on
+    // radius alone would replace this with a curve nobody drew.
+    const s = skeletonFromPathData(["M0 0 A5 5 0 0 1 10 0 A5 5 0 0 0 20 0"]);
+    expect(mergeArcs(s, 0.05).subpaths[0]?.segments).toHaveLength(2);
+  });
+
+  it("keeps a seam somebody pinned a radius to", () => {
+    const pinned = { ...halves(), corners: { 1: 2 } };
+    expect(mergeArcs(pinned, 0.05).subpaths[0]?.segments).toHaveLength(2);
+  });
+
+  it("keeps a seam another subpath joins", () => {
+    // Three things meeting is a junction, and a junction is not a seam.
+    const joined = skeletonFromPathData([
+      "M10 0 A10 10 0 0 1 7.0711 7.0711 A10 10 0 0 1 0 10",
+      "M7.0711 7.0711 L20 20",
+    ]);
+    expect(mergeArcs(joined, 0.05).subpaths[0]?.segments).toHaveLength(2);
+  });
+
+  it("sets the large-arc flag when the joined sweep passes a half turn", () => {
+    // Three quarters of a circle, written as two arcs, each under a half turn.
+    const wide = skeletonFromPathData(["M10 0 A10 10 0 0 1 -10 0 A10 10 0 0 1 0 -10"]);
+    const merged = mergeArcs(wide, 0.05);
+    const only = merged.subpaths[0]?.segments[0];
+    expect(merged.subpaths[0]?.segments).toHaveLength(1);
+    expect(only?.kind === "arc" && only.largeArc).toBe(true);
+  });
+
+  it("runs as part of tidy, on geometry that arrived split", () => {
+    expect(tidy(halves(), { grid: 0, canvas: 24 }).subpaths[0]?.segments).toHaveLength(1);
   });
 });
