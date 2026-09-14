@@ -239,15 +239,17 @@ No onboarding, no questions asked. The user is looking at somebody else's icons 
 
 ### 5.2 Author a language
 
-The Language tab is one screen in three columns, sorted by a single rule:
-**everything that changes the drawing sits next to the canvas, everything else
-gets out of the way.**
+The Language tab is one screen sorted by a single rule: **everything that
+changes the drawing sits next to the canvas, everything else gets out of the
+way.** The words used to be a permanent left column, which is a poor trade — a
+purpose statement is written once and read rarely — so they became the first
+view of the canvas instead, left of Parts.
 
 | Column | Holds |
 | --- | --- |
-| Left | Identity, purpose, principles, metaphors, preference weights, the questions left to a person, version history. None of it changes the drawing. |
-| Middle | The canvas: all 23 built-in parts, your own elements, and icons composed from them. Every one drawn on a light and a dark ground at once. |
-| Right | Personality axes first, then the construction traits, the grammar, the size tokens, the optical corrections. |
+| Far left | A strip that opens the assistant. Closed by default, because there is nothing in it yet. |
+| Middle | Four views. **Language**: identity, purpose, principles, metaphors, preference weights, the questions left to a person. **Parts**: all 23 built-in parts, your own elements, and icons composed from them, every one drawn on a light and a dark ground at once. **Keylines**: the boxes those parts are sized against. **Method**: how a part is built. |
+| Right | A rail that follows the view: version history against the words, the keyline boxes against the sheet, and against the parts, personality axes first, then the construction traits, the grammar, the size tokens, the optical corrections. |
 
 1. Move anything on the right and the canvas redraws as you type.
 2. Hovering a construction trait dims every part it cannot reach, so nobody has to guess what a shared control does.

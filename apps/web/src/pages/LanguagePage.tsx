@@ -44,7 +44,17 @@ import { CornerRamp } from "../components/CornerRamp.js";
 import { KeylineSheet } from "../components/KeylineSheet.js";
 import { OpticalShapesPanel } from "../components/OpticalShapesPanel.js";
 import { AxisSlider, Choice, Field, Lands, NumberField, StringList, Toggle, WordList } from "../components/LanguageFields.js";
+import { AssistantPanel, AssistantToggle } from "../components/AssistantPanel.js";
 import { useLibrary } from "../store/LibraryContext.js";
+
+/** What the canvas is showing. The words are a view like any other. */
+type View = "language" | "parts" | "keylines" | "method";
+const VIEW_LABELS: Record<View, string> = {
+  language: "Language",
+  parts: "Parts",
+  keylines: "Keylines",
+  method: "Method",
+};
 
 const CAPS: readonly StrokeCap[] = ["butt", "round", "square"];
 const JOINS: readonly StrokeJoin[] = ["miter", "round", "bevel"];
@@ -119,8 +129,23 @@ export function LanguagePage() {
   const [status, setStatus] = useState<AgentStatus>({ model: null, error: null, reachable: false });
   useEffect(() => void agentStatus().then(setStatus), []);
   const [reviewing, setReviewing] = useState(false);
-  /** Parts, or the keyline sheet the parts are sized against. */
-  const [view, setView] = useState<"parts" | "keylines" | "method">("parts");
+  /**
+   * The language as words, the parts, the keyline sheet the parts are sized
+   * against, or the method they are built by.
+   *
+   * The words used to be a column that was always on screen, which is a poor
+   * trade: a purpose statement is written once and read rarely, and it was
+   * holding a third of the page away from the drawing on every other visit. As
+   * a view it costs a click on the day you write it and nothing on the days you
+   * do not.
+   */
+  const [view, setView] = useState<View>("parts");
+  /**
+   * Whether the assistant panel is open. Closed by default and not remembered,
+   * because there is nothing in it yet and the honest default for an empty room
+   * is shut.
+   */
+  const [assistant, setAssistant] = useState(false);
   /**
    * Which style the canvas draws. A filled style is a property of the *set* —
    * whether these shapes still read as one hand when they are solid — so it is
@@ -148,17 +173,25 @@ export function LanguagePage() {
    * synced: a `tab` that could disagree with `view` is a state pair that will
    * eventually disagree.
    */
-  const rail: "primitives" | "hand" | "rules" | "method" =
-    view === "keylines" ? "primitives" : view === "method" ? "method" : tab;
+  const rail: "versions" | "primitives" | "hand" | "rules" | "method" =
+    view === "language"
+      ? "versions"
+      : view === "keylines"
+        ? "primitives"
+        : view === "method"
+          ? "method"
+          : tab;
   const railTabs =
-    view === "keylines"
-      ? ([["primitives", "Primitives"]] as const)
-      : view === "method"
-        ? ([["method", "Construction"]] as const)
-        : ([
-            ["hand", "The hand"],
-            ["rules", "Rules"],
-          ] as const);
+    view === "language"
+      ? ([["versions", "Versions"]] as const)
+      : view === "keylines"
+        ? ([["primitives", "Primitives"]] as const)
+        : view === "method"
+          ? ([["method", "Construction"]] as const)
+          : ([
+              ["hand", "The hand"],
+              ["rules", "Rules"],
+            ] as const);
 
   const current = useMemo(() => {
     if (!library) return undefined;
@@ -467,137 +500,17 @@ export function LanguagePage() {
       {error && <p className="error-text">{error}</p>}
       {parsed?.error && <p className="error-text">This change is not valid yet: {parsed.error}</p>}
 
-      <div className="hand-layout">
-        {/* Left: the language as words and rules. None of it changes the drawing. */}
-        <div className="col words">
-          <p className="col-head">The language</p>
-          <p className="col-sub">What it is and what it stands for. Written once, read rarely.</p>
-          <section>
-            <h2>Identity</h2>
-            <Field label="Name">
-              <input value={draft.name} onChange={(e) => patch({ name: e.target.value })} />
-            </Field>
-            <Field label="Description">
-              <textarea rows={2} value={draft.description ?? ""} onChange={(e) => patch({ description: e.target.value })} />
-            </Field>
-          </section>
-
-          <section>
-            <h2>Philosophy</h2>
-            <Field
-              label="Purpose"
-              hint={<Lands>Opens the brief the drafting agent is given, and sits above the set in review.</Lands>}
-            >
-              <textarea
-                rows={2}
-                placeholder="Icons for a tool someone uses all day. They should be read, not noticed."
-                value={character.purpose ?? ""}
-                onChange={(e) => patchCharacter({ purpose: e.target.value })}
-              />
-            </Field>
-
-
-            <Field
-              label="Principles"
-              hint={<Lands>Handed to the drafting agent word for word, one line each. Write them as instructions.</Lands>}
-            >
-              <StringList
-                items={character.principles}
-                placeholder="Detail is a budget, not a bonus. If it disappears at 16px, it should not be drawn."
-                addLabel="Add a principle"
-                onChange={(principles) => patchCharacter({ principles })}
-              />
-            </Field>
-
-            <Field label="Metaphors this set uses" hint={<Lands kind="used">Offered to the agent as the vocabulary to reach for.</Lands>}>
-              <WordList
-                value={character.metaphors.use}
-                placeholder="containers, arrows, badges, documents"
-                onChange={(use) => patchCharacter({ metaphors: { ...character.metaphors, use } })}
-              />
-            </Field>
-            <Field label="Metaphors it refuses" hint={<Lands kind="used">The agent is told not to reach for these, and review shows when one appears.</Lands>}>
-              <WordList
-                value={character.metaphors.avoid}
-                placeholder="faces, hands, fake depth, drop shadows"
-                onChange={(avoid) => patchCharacter({ metaphors: { ...character.metaphors, avoid } })}
-              />
-            </Field>
-            <Field label="Words your product owns" hint={<Lands kind="used">Helps the agent recognise your own nouns.</Lands>}>
-              <WordList
-                value={character.vocabulary}
-                placeholder="shipment, hub, lane, exception"
-                onChange={(vocabulary) => patchCharacter({ vocabulary })}
-              />
-            </Field>
-          </section>
-
-          <section>
-            <h2>Preferences</h2>
-            <p className="muted small-text">
-              Soft rules. They are measured and used to rank, never to refuse. How much each one counts is your
-              decision, not ours — set a weight to zero to switch one off.
-            </p>
-            {builtInScorers.map((scorer) => {
-              const weight = draft.preferences?.[scorer.id] ?? 1;
-              return (
-                <div className="preference" key={scorer.id}>
-                  <div className="preference-head">
-                    <span className="field-label">{scorer.label}</span>
-                    <span className="muted small-text">{weight === 0 ? "off" : `×${weight}`}</span>
-                  </div>
-                  <div className="row-inline">
-                    <input
-                      type="range"
-                      min={0}
-                      max={2}
-                      step={0.25}
-                      value={weight}
-                      onChange={(e) => {
-                        const next = { ...draft.preferences, [scorer.id]: Number(e.target.value) };
-                        if (next[scorer.id] === 1) delete next[scorer.id];
-                        patch({ preferences: next });
-                      }}
-                    />
-                  </div>
-                  <p className="muted small-text">{scorer.description}</p>
-                </div>
-              );
-            })}
-            <Lands kind="guidance">Measured on every icon and shown as a score. Nothing here can stop an icon.</Lands>
-
-            <h2>Left to a person</h2>
-            <p className="muted small-text">
-              Questions with no measurement. They are asked in review and never answered by the system, because
-              implying an enforcement that does not exist is worse than admitting there is none.
-            </p>
-            <ul className="human-questions">
-              {builtInHumanRules.map((rule) => (
-                <li key={rule.id}>
-                  <strong>{rule.label}.</strong> {rule.question}
-                </li>
-              ))}
-            </ul>
-            <p className="muted small-text">
-              {builtInRules.length} rules are enforced, {builtInScorers.length} are scored, {builtInHumanRules.length}{" "}
-              are left to you.
-            </p>
-          </section>
-
-          {history.length > 0 && (
-            <section>
-              <h2>Versions</h2>
-              <ul className="versions">
-                {history.map((h) => (
-                  <li key={h.version}>
-                    <strong>v{h.version}</strong> <span className="muted">{new Date(h.savedAt).toLocaleString()}</span>
-                    {h.note && <div className="muted small-text">{h.note}</div>}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
+      <div className={`hand-layout ${assistant ? "assisted" : ""}`}>
+        {/*
+         * Far left: the assistant, and the one control that opens it.
+         *
+         * A rail rather than a fourth column, because a panel with nothing in
+         * it yet should not be holding width away from the drawing. Closed, it
+         * is a strip with one button; open, it is the width of a conversation
+         * and no more.
+         */}
+        <AssistantToggle open={assistant} onToggle={() => setAssistant((o) => !o)} />
+        {assistant && <AssistantPanel onClose={() => setAssistant(false)} />}
 
         {/* Middle: every part, live. The reason three columns are worth having. */}
         <div className="col canvas">
@@ -608,16 +521,135 @@ export function LanguagePage() {
                 keyline sheet. A bar that mixes the two implies the sizes apply
                 to whichever view is up, and on the sheet they never did: it
                 draws every size at once. */}
-            {/* Three questions a set has to answer: do these look like one hand,
-                are they the same size, are they built the same way. */}
-            {(["parts", "keylines", "method"] as const).map((v) => (
+            {/* One question about the words, then three a set has to answer: do
+                these look like one hand, are they the same size, are they built
+                the same way. The language leads because it is what the other
+                three are judged against. */}
+            {(Object.keys(VIEW_LABELS) as View[]).map((v) => (
               <button key={v} className={`chip ${view === v ? "on" : ""}`} onClick={() => setView(v)}>
-                {v === "parts" ? "Parts" : v === "keylines" ? "Keylines" : "Method"}
+                {VIEW_LABELS[v]}
               </button>
             ))}
             <span className="spacer" />
             {dirty && <span className="muted small-text">unsaved</span>}
           </div>
+          {view === "language" && (
+            <div className="language-words">
+              <p className="col-head">The language</p>
+              <p className="col-sub">What it is and what it stands for. Written once, read rarely.</p>
+              <section>
+                <h2>Identity</h2>
+                <Field label="Name">
+                  <input value={draft.name} onChange={(e) => patch({ name: e.target.value })} />
+                </Field>
+                <Field label="Description">
+                  <textarea rows={2} value={draft.description ?? ""} onChange={(e) => patch({ description: e.target.value })} />
+                </Field>
+              </section>
+
+              <section>
+                <h2>Philosophy</h2>
+                <Field
+                  label="Purpose"
+                  hint={<Lands>Opens the brief the drafting agent is given, and sits above the set in review.</Lands>}
+                >
+                  <textarea
+                    rows={2}
+                    placeholder="Icons for a tool someone uses all day. They should be read, not noticed."
+                    value={character.purpose ?? ""}
+                    onChange={(e) => patchCharacter({ purpose: e.target.value })}
+                  />
+                </Field>
+
+
+                <Field
+                  label="Principles"
+                  hint={<Lands>Handed to the drafting agent word for word, one line each. Write them as instructions.</Lands>}
+                >
+                  <StringList
+                    items={character.principles}
+                    placeholder="Detail is a budget, not a bonus. If it disappears at 16px, it should not be drawn."
+                    addLabel="Add a principle"
+                    onChange={(principles) => patchCharacter({ principles })}
+                  />
+                </Field>
+
+                <Field label="Metaphors this set uses" hint={<Lands kind="used">Offered to the agent as the vocabulary to reach for.</Lands>}>
+                  <WordList
+                    value={character.metaphors.use}
+                    placeholder="containers, arrows, badges, documents"
+                    onChange={(use) => patchCharacter({ metaphors: { ...character.metaphors, use } })}
+                  />
+                </Field>
+                <Field label="Metaphors it refuses" hint={<Lands kind="used">The agent is told not to reach for these, and review shows when one appears.</Lands>}>
+                  <WordList
+                    value={character.metaphors.avoid}
+                    placeholder="faces, hands, fake depth, drop shadows"
+                    onChange={(avoid) => patchCharacter({ metaphors: { ...character.metaphors, avoid } })}
+                  />
+                </Field>
+                <Field label="Words your product owns" hint={<Lands kind="used">Helps the agent recognise your own nouns.</Lands>}>
+                  <WordList
+                    value={character.vocabulary}
+                    placeholder="shipment, hub, lane, exception"
+                    onChange={(vocabulary) => patchCharacter({ vocabulary })}
+                  />
+                </Field>
+              </section>
+
+              <section>
+                <h2>Preferences</h2>
+                <p className="muted small-text">
+                  Soft rules. They are measured and used to rank, never to refuse. How much each one counts is your
+                  decision, not ours — set a weight to zero to switch one off.
+                </p>
+                {builtInScorers.map((scorer) => {
+                  const weight = draft.preferences?.[scorer.id] ?? 1;
+                  return (
+                    <div className="preference" key={scorer.id}>
+                      <div className="preference-head">
+                        <span className="field-label">{scorer.label}</span>
+                        <span className="muted small-text">{weight === 0 ? "off" : `×${weight}`}</span>
+                      </div>
+                      <div className="row-inline">
+                        <input
+                          type="range"
+                          min={0}
+                          max={2}
+                          step={0.25}
+                          value={weight}
+                          onChange={(e) => {
+                            const next = { ...draft.preferences, [scorer.id]: Number(e.target.value) };
+                            if (next[scorer.id] === 1) delete next[scorer.id];
+                            patch({ preferences: next });
+                          }}
+                        />
+                      </div>
+                      <p className="muted small-text">{scorer.description}</p>
+                    </div>
+                  );
+                })}
+                <Lands kind="guidance">Measured on every icon and shown as a score. Nothing here can stop an icon.</Lands>
+
+                <h2>Left to a person</h2>
+                <p className="muted small-text">
+                  Questions with no measurement. They are asked in review and never answered by the system, because
+                  implying an enforcement that does not exist is worse than admitting there is none.
+                </p>
+                <ul className="human-questions">
+                  {builtInHumanRules.map((rule) => (
+                    <li key={rule.id}>
+                      <strong>{rule.label}.</strong> {rule.question}
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted small-text">
+                  {builtInRules.length} rules are enforced, {builtInScorers.length} are scored, {builtInHumanRules.length}{" "}
+                  are left to you.
+                </p>
+              </section>
+            </div>
+          )}
           {preview && view === "keylines" && (
             <KeylineSheet
               language={preview}
@@ -680,6 +712,28 @@ export function LanguagePage() {
               </button>
             ))}
           </div>
+
+          {rail === "versions" && (
+            <section>
+              <h2>Versions</h2>
+              <p className="muted small-text">
+                Every save of these words, oldest first. Reading the language, the one thing worth having beside it is
+                what it used to say.
+              </p>
+              {history.length === 0 ? (
+                <p className="muted small-text">Nothing saved yet. The first save starts the history.</p>
+              ) : (
+                <ul className="versions">
+                  {history.map((h) => (
+                    <li key={h.version}>
+                      <strong>v{h.version}</strong> <span className="muted">{new Date(h.savedAt).toLocaleString()}</span>
+                      {h.note && <div className="muted small-text">{h.note}</div>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
 
           {rail === "primitives" && (
             <section>
